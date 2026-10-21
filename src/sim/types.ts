@@ -101,6 +101,8 @@ export interface Kingdom {
   droughtTurns: number;
   starvedThisTurn: boolean;
   thoughts: string;
+  /** One-line summary of what the last council actually did (shown on the card). */
+  lastOrders: string;
   thinking: boolean;
   recentEvents: string[];
   inbox: InboxMsg[];

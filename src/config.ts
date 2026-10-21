@@ -157,9 +157,9 @@ export const CONFIG = {
 
   /** Random neutral raider bands, so peaceful games still have drama. */
   randomEvents: {
-    monsterChancePerTurn: 0.06,
+    monsterChancePerTurn: 0.1,
     monsterCount: 6,
-    firstTurn: 8,
+    firstTurn: 6,
   },
 
   ai: {

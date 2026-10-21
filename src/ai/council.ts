@@ -126,5 +126,6 @@ export class Council {
     this.game.debug.push(entry);
     if (!entry.error?.startsWith('rate limited')) this.game.log('council_fail', { a: k.name }, k.hx, k.hy);
     k.thoughts = '(the council could not agree)';
+    k.lastOrders = entry.error?.startsWith('rate limited') ? 'skipped this turn (rate limited by the model)' : `held: ${entry.error ?? 'no valid orders'}`.slice(0, 120);
   }
 }

@@ -100,6 +100,7 @@ export function sanitizeOrders(raw: any): Orders {
 /** Apply sanitized orders to the game. Returns human-readable rejections. */
 export function executeOrders(game: Game, k: Kingdom, o: Orders): string[] {
   const rejected: string[] = [];
+  const done: string[] = []; // human-readable summary shown on the kingdom card
   if (!k.alive || game.over) return rejected;
   if (o.thoughts) k.thoughts = o.thoughts;
   if (o.worker_priorities) k.priorities = { ...o.worker_priorities };
@@ -124,10 +125,13 @@ export function executeOrders(game: Game, k: Kingdom, o: Orders): string[] {
         rejected.push(`${k.name} tried to build ${b.type}, but found no suitable site`);
         break;
       }
+      if (b.type === 'barracks' && game.buildingsOfType(k, 'barracks').length === 0)
+        game.log('barracks', { a: k.name, town: k.town }, site.x, site.y);
       pay(k.res, def.cost);
       placeBuilding(game, k, b.type, site.x, site.y);
       built++;
     }
+    if (built) done.push(`built ${built} ${b.type}${built > 1 ? 's' : ''}`);
   }
 
   const hasBarracks = game.buildingsOfType(k, 'barracks').some((b) => b.buildLeft === 0);
@@ -145,11 +149,18 @@ export function executeOrders(game: Game, k: Kingdom, o: Orders): string[] {
     if (n <= 0) continue;
     pay(k.res, CONFIG.units[type].cost, n);
     for (let i = 0; i < n; i++) k.trainQueue.push({ type, left: CONFIG.units[type].trainTicks });
+    done.push(`trained ${n} ${type}${n > 1 ? 's' : ''}`);
   }
 
   for (const a of o.armies) {
     if (a.action === 'defend' || a.action === 'retreat') {
-      for (const army of game.armies) if (army.kingdom === k.id && army.action !== 'return') sendHome(game, army);
+      let recalled = 0;
+      for (const army of game.armies)
+        if (army.kingdom === k.id && army.action !== 'return') {
+          sendHome(game, army);
+          recalled++;
+        }
+      done.push(recalled ? 'recalled its armies' : 'stood on defence');
       continue;
     }
     const target = game.findKingdom(a.target);
@@ -170,7 +181,21 @@ export function executeOrders(game: Game, k: Kingdom, o: Orders): string[] {
     const size = Math.min(a.size || avail, avail);
     if (game.relations[k.id][target.id] !== 'war') declareWar(game, k, target);
     const army = raiseArmy(game, k, size, a.action, target.id);
-    if (army) game.event(target, `Scouts report an army of ~${size} from ${k.name} marching toward you`);
+    if (army) {
+      const n = army.soldiers + army.archers;
+      game.event(target, `Scouts report an army of ~${n} from ${k.name} marching toward you`);
+      game.log(a.action === 'raid' ? 'muster_raid' : 'muster', { a: k.name, b: target.name, n }, k.hx, k.hy);
+      game.focusOn(k.hx, k.hy);
+      done.push(`${a.action === 'raid' ? 'raided' : 'attacked'} ${target.name} with ${n}`);
+    }
   }
+
+  for (const d of o.diplomacy) {
+    if (d.type === 'message' || !game.findKingdom(d.to)) continue;
+    done.push(`${d.type.replace(/_/g, ' ')} → ${game.findKingdom(d.to)!.name}`);
+  }
+  const msgs = o.diplomacy.filter((d) => d.type === 'message').length;
+  if (msgs) done.push(`sent ${msgs} message${msgs > 1 ? 's' : ''}`);
+  k.lastOrders = done.length ? done.join(' · ') : 'gave no orders';
   return rejected;
 }

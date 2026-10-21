@@ -159,6 +159,7 @@ export class Panels {
           <div class="chips">${chips}</div>`
               : ''
           }
+          ${k.lastOrders && k.alive ? `<div class="lastorders" title="What this ruler did at the last council">▸ ${esc(k.lastOrders)}</div>` : ''}
           ${k.thoughts ? `<div class="thought">“${esc(k.thoughts)}”</div>` : ''}
         </div>`;
       })

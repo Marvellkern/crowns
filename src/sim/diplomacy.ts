@@ -160,6 +160,7 @@ export function applyDiplomacy(game: Game, from: Kingdom, d: DipOrder, rejected:
       const res = d.resource && RESOURCES.includes(d.resource) ? d.resource : 'gold';
       const amount = Math.floor(Math.max(0, Math.min(Number(d.amount) || 50, CONFIG.diplomacy.maxTributePerOrder)));
       say(`[demands ${amount} ${res}] `);
+      game.log('tribute_demand', { a: from.name, b: to.name, n: amount, res }, to.hx, to.hy);
       return;
     }
   }

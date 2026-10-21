@@ -114,6 +114,7 @@ export class Game {
         droughtTurns: 0,
         starvedThisTurn: false,
         thoughts: '',
+        lastOrders: '',
         thinking: false,
         recentEvents: [],
         inbox: [],

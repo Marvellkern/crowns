@@ -26,6 +26,23 @@ export const CHRONICLE_TEMPLATES: Record<string, string[]> = {
     'War horns sounded: the {a} marches against the {b}.',
     'The {a} named the {b} its enemy. Blood will follow.',
   ],
+  muster: [
+    'The {a} mustered {n} troops and marched on the {b}.',
+    'War drums beat in the halls of the {a}; {n} spears set out against the {b}.',
+    'A host of {n} left the {a} with the {b} in its sights.',
+  ],
+  muster_raid: [
+    'Raiders of the {a}, {n} strong, rode out toward the {b}.',
+    'The {a} sent {n} raiders to plunder the {b}.',
+  ],
+  barracks: [
+    'The {a} began raising a barracks at {town}. Their neighbours took note.',
+    'At {town}, the {a} laid the foundations of a barracks.',
+  ],
+  tribute_demand: [
+    'The {a} demanded {n} {res} in tribute from the {b}.',
+    'Envoys of the {a} came to the {b} demanding {n} {res}.',
+  ],
   peace: [
     'The {a} and the {b} laid down their arms and made peace.',
     'A weary peace settled between the {a} and the {b}.',
