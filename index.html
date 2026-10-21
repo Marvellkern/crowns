@@ -1,0 +1,44 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <meta name="description" content="Three kingdoms, each ruled by a different AI. Watch them build, scheme, betray, and go to war." />
+    <title>Crowns — AI Kingdoms</title>
+    <link rel="icon" href="/favicon.svg" type="image/svg+xml" />
+    <link rel="preconnect" href="https://fonts.googleapis.com" />
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+    <link href="https://fonts.googleapis.com/css2?family=JetBrains+Mono:ital,wght@0,400;0,700;1,400&display=swap" rel="stylesheet" />
+  </head>
+  <body>
+    <div id="setup" class="screen"></div>
+
+    <div id="game" class="hidden">
+      <header id="topbar"></header>
+      <main id="mapwrap">
+        <canvas id="map"></canvas>
+        <div id="tooltip" class="hidden"></div>
+        <div id="subtitle"></div>
+        <div id="godhint" class="hidden"></div>
+        <button id="exitCinematic" class="btn small">Exit cinematic (C)</button>
+      </main>
+      <aside id="side">
+        <div id="cards"></div>
+        <nav id="tabs">
+          <button data-tab="chronicle" class="tab active">Chronicle</button>
+          <button data-tab="diplomacy" class="tab">Diplomacy</button>
+          <button data-tab="debug" class="tab">Debug</button>
+        </nav>
+        <div id="tabbody">
+          <div id="tab-chronicle" class="tabpane"></div>
+          <div id="tab-diplomacy" class="tabpane hidden"></div>
+          <div id="tab-debug" class="tabpane hidden"></div>
+        </div>
+      </aside>
+      <footer id="godbar"></footer>
+    </div>
+
+    <div id="endscreen" class="hidden"></div>
+    <script type="module" src="/src/main.ts"></script>
+  </body>
+</html>
