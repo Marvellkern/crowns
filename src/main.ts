@@ -17,6 +17,7 @@ import { GodBar } from './ui/godPowers';
 import { showSetup } from './ui/setup';
 import { getPersona } from './ai/personas';
 import { counts } from './sim/kingdom';
+import { StatsOverlay } from './render/statsOverlay';
 
 const setupEl = document.getElementById('setup')!;
 const gameEl = document.getElementById('game')!;
@@ -26,6 +27,8 @@ const tooltip = document.getElementById('tooltip')!;
 const subtitle = document.getElementById('subtitle')!;
 
 const renderer = new Renderer(canvas);
+const stats = new StatsOverlay(document.getElementById('stats') as HTMLCanvasElement);
+const toggleStats = () => document.body.classList.toggle('nostats');
 
 interface Session {
   game: Game;
@@ -72,6 +75,7 @@ function startGame(setup: GameSetup, apiKey: string) {
     isPaused: () => paused,
     togglePause: () => (paused = !paused),
     toggleCinematic: () => setCinematic(!cinematic),
+    toggleStats,
     exportChronicle,
     newGame: () => {
       if (game.over || confirm('Abandon this age and return to setup?')) openSetup();
@@ -201,6 +205,7 @@ function frame(now: number) {
     lastUi = now;
     S.panels.update();
     S.god.update();
+    if (!document.body.classList.contains('nostats')) stats.draw(g);
     if (hoverTile && !tooltip.classList.contains('hidden')) tooltip.innerHTML = describeTile(g, hoverTile.x, hoverTile.y);
   }
 }
@@ -274,6 +279,7 @@ window.addEventListener('keydown', (e) => {
     paused = !paused;
     e.preventDefault();
   } else if (k === 'c') setCinematic(!cinematic);
+  else if (k === 'g') toggleStats();
   else if (k === 'escape') {
     if (cinematic) setCinematic(false);
     S.god.select(null);

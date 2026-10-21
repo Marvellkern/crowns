@@ -45,6 +45,7 @@ export interface TopbarControls {
   isPaused(): boolean;
   togglePause(): void;
   toggleCinematic(): void;
+  toggleStats(): void;
   exportChronicle(): void;
   newGame(): void;
   onKingdomClick(id: number): void;
@@ -91,11 +92,13 @@ export class Panels {
         <select id="tbInterval">${[20, 30, 45, 60, 90, 120].map((s) => `<option value="${s}">${s}s</option>`).join('')}</select></span>
       <span class="spacer"></span>
       <span class="dim" title="World seed">seed: ${esc(game.setup.seed)}</span>
+      <button class="btn small" id="tbStats" title="Army size graph (G)">Stats</button>
       <button class="btn small" id="tbCine" title="Hide panels for recording (C)">Cinematic</button>
       <button class="btn small" id="tbNew">New age</button>`;
     this.topEl.querySelectorAll<HTMLButtonElement>('[data-speed]').forEach((b) => (b.onclick = () => ctl.setSpeed(Number(b.dataset.speed))));
     document.getElementById('tbPause')!.onclick = () => ctl.togglePause();
     document.getElementById('tbCine')!.onclick = () => ctl.toggleCinematic();
+    document.getElementById('tbStats')!.onclick = () => ctl.toggleStats();
     document.getElementById('tbNew')!.onclick = () => ctl.newGame();
     const iv = document.getElementById('tbInterval') as HTMLSelectElement;
     if (![...iv.options].some((o) => Number(o.value) === game.setup.councilSec))
@@ -121,6 +124,7 @@ export class Panels {
     const pause = document.getElementById('tbPause')!;
     pause.textContent = this.ctl.isPaused() ? '▶ Resume' : '❚❚ Pause';
     pause.classList.toggle('active', this.ctl.isPaused());
+    document.getElementById('tbStats')!.classList.toggle('active', !document.body.classList.contains('nostats'));
     const secs = Math.ceil(g.councilCountdown / CONFIG.sim.ticksPerSecond);
     const anyThinking = g.kingdoms.some((k) => k.thinking);
     document.getElementById('tbCountdown')!.textContent = g.over

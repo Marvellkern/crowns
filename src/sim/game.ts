@@ -68,6 +68,8 @@ export class Game {
   /** Where the latest action happened (cinematic camera target). */
   focus: { x: number; y: number; tick: number } | null = null;
   godReadyAt: Partial<Record<GodPower, number>> = {};
+  /** One sample per season: troops (home + field) per kingdom, for the stats overlay. */
+  history: { turn: number; army: number[] }[] = [];
 
   over = false;
   winner = -1;
@@ -170,6 +172,11 @@ export class Game {
     this.focus = { x, y, tick: this.tick };
   }
 
+  /** Current troop count per kingdom (0 once fallen). */
+  armySizes() {
+    return this.kingdoms.map((k) => (k.alive ? counts(this, k).military : 0));
+  }
+
   strength(k: Kingdom) {
     if (!k.alive) return 0;
     const c = counts(this, k);
@@ -233,6 +240,7 @@ export class Game {
       k.starvedThisTurn = false;
       k.stats.peakArmy = Math.max(k.stats.peakArmy, counts(this, k).military);
     }
+    this.history.push({ turn: this.turn, army: this.armySizes() });
     this.proposals = this.proposals.filter((p) => this.turn - p.turn <= CONFIG.diplomacy.proposalWindowTurns);
     randomTurnEvents(this);
     this.onCouncil?.();
