@@ -230,6 +230,9 @@ function assaultBuilding(game: Game, army: Army, b: Building) {
   const ak = army.kingdom >= 0 ? game.kingdoms[army.kingdom] : null;
   if (ak) ak.stats.unitsLost += aDead;
   const bldName = b.type === 'hall' ? 'town hall' : b.type === 'lumber' ? 'lumber camp' : b.type;
+  const fellText = fellSuffix(fell);
+  // what each side brought, so rulers learn why they won or lost
+  const odds = `your ${troops(att.soldiers + att.archers)} vs ${troops(def.soldiers + def.archers)} defending${b.type === 'hall' ? ' plus the town hall itself' : ''}`;
 
   if (r.attackerWins) {
     if (ak) {
@@ -237,6 +240,7 @@ function assaultBuilding(game: Game, army: Army, b: Building) {
       dk.stats.battlesLost++;
     }
     if (army.action === 'raid' && ak) {
+      // raids steal and leave; burning buildings is what attacks are for
       const loot: string[] = [];
       for (const res of RESOURCES) {
         const take = Math.floor(Math.min(dk.res[res], CONFIG.combat.raidSteal[res]));
@@ -247,19 +251,21 @@ function assaultBuilding(game: Game, army: Army, b: Building) {
         }
       }
       const lootText = loot.length ? loot.join(', ') : 'nothing of worth';
-      game.log('raid', { a: ak.name, b: dk.name, town: dk.town, bld: bldName, loot: lootText }, b.x, b.y);
+      logRaid(game, ak, dk, bldName, lootText, b);
       game.event(dk, `${ak.name} raided your ${bldName} and stole ${lootText}`);
-      game.event(ak, `Your raid on ${dk.name} won ${lootText}`);
+      game.event(ak, `Your raid on ${dk.name} won ${lootText} (${odds})`);
       sendHome(game, army);
-      if (b.type !== 'hall') destroyBuildingAndCheck(game, b, ak);
       return;
     }
     if (ak) {
-      game.log('attack_win', { a: ak.name, b: dk.name, town: dk.town, bld: bldName, n: fell }, b.x, b.y);
-      game.event(dk, `${ak.name} destroyed your ${bldName} (${fell} fell)`);
-      game.event(ak, `You destroyed the ${bldName} of ${dk.name} (${fell} fell)`);
+      game.log('attack_win', { a: ak.name, b: dk.name, town: dk.town, bld: bldName, fell: fellText }, b.x, b.y);
+      game.event(dk, `${ak.name} destroyed your ${bldName}${fellText}`);
+      game.event(ak, `You destroyed the ${bldName} of ${dk.name} (${odds})`);
     } else {
-      game.log('monsters_win', { b: dk.name, town: dk.town, bld: bldName, n: fell }, b.x, b.y);
+      // one Chronicle line per raider band, not one per building
+      const burned = (monsterBurns.get(army) ?? 0) + 1;
+      monsterBurns.set(army, burned);
+      if (burned === 1) game.log('monsters_win', { b: dk.name, town: dk.town, bld: bldName, fell: fellText }, b.x, b.y);
       game.event(dk, `Wild raiders destroyed your ${bldName}`);
     }
     destroyBuildingAndCheck(game, b, ak);
@@ -269,18 +275,47 @@ function assaultBuilding(game: Game, army: Army, b: Building) {
     if (ak) {
       ak.stats.battlesLost++;
       dk.stats.battlesWon++;
-      game.log('attack_lose', { a: ak.name, b: dk.name, town: dk.town, n: fell }, b.x, b.y);
-      game.event(dk, `You repelled an attack by ${ak.name} (${fell} fell)`);
-      game.event(ak, `Your attack on ${dk.name} failed (${fell} fell)`);
+      game.log('attack_lose', { a: ak.name, b: dk.name, town: dk.town, fell: fellText }, b.x, b.y);
+      game.event(dk, `You repelled an attack by ${ak.name}${fellText}`);
+      game.event(ak, `Your attack on ${dk.name} failed: ${odds}. Bring a bigger army.`);
       dk.morale = Math.min(100, dk.morale + 5);
       if (armySize(army) <= 0) removeArmy(game, army);
       else sendHome(game, army);
     } else {
-      game.log('monsters_lose', { a: dk.name, town: dk.town, n: fell }, b.x, b.y);
+      // beaten raiders scatter: the band is gone, one line
+      const burned = monsterBurns.get(army) ?? 0;
+      game.log(burned ? 'monsters_lose_after' : 'monsters_lose', { a: dk.name, town: dk.town, burned: burned === 1 ? 'a building' : `${burned} buildings` }, b.x, b.y);
       game.event(dk, `You defeated a band of wild raiders`);
-      if (armySize(army) <= 0) removeArmy(game, army);
+      removeArmy(game, army);
     }
   }
+}
+
+/** Buildings burned per raider band (for one-line Chronicle summaries). */
+const monsterBurns = new WeakMap<Army, number>();
+
+/** "" for no deaths, " (3 fell)" otherwise. */
+export function fellSuffix(n: number) {
+  return n > 0 ? ` (${n} fell)` : '';
+}
+/** "1 soldier" / "12 troops" / "no troops". */
+export function troops(n: number) {
+  return n <= 0 ? 'no troops' : n === 1 ? '1 soldier' : `${n} troops`;
+}
+
+/** Repeated raids on the same kingdom are summarised instead of logged every time. */
+function logRaid(game: Game, ak: Kingdom, dk: Kingdom, bldName: string, lootText: string, b: Building) {
+  const key = `${ak.id}>${dk.id}`;
+  const prev = game.raidStreaks.get(key);
+  const count = prev && game.turn - prev.turn <= 2 ? prev.count + 1 : 1;
+  game.raidStreaks.set(key, { count, turn: game.turn });
+  if (count === 1) game.log('raid', { a: ak.name, b: dk.name, town: dk.town, bld: bldName, loot: lootText }, b.x, b.y);
+  else if (count % 3 === 0) game.log('raid_again', { a: ak.name, b: dk.name, town: dk.town, n: count, nth: ordinal(count), loot: lootText }, b.x, b.y);
+}
+
+function ordinal(n: number) {
+  const s = n % 100 >= 11 && n % 100 <= 13 ? 'th' : ({ 1: 'st', 2: 'nd', 3: 'rd' } as Record<number, string>)[n % 10] ?? 'th';
+  return `${n}${s}`;
 }
 
 /** Hostile armies that meet in the open fight it out. */
@@ -309,7 +344,7 @@ function fieldBattles(game: Game) {
       const loser = r.attackerWins ? b : a;
       game.markers.push({ x: a.x, y: a.y, ttl: CONFIG.combat.battleMarkerTicks, kind: 'battle' });
       game.focusOn(a.x, a.y);
-      game.log('field_battle', { a: name(a.kingdom), b: name(b.kingdom), w: name(winner.kingdom), n: fell }, a.x, a.y);
+      game.log('field_battle', { a: name(a.kingdom), b: name(b.kingdom), w: name(winner.kingdom), fell: fellSuffix(fell) }, a.x, a.y);
       for (const side of [a, b]) {
         if (side.kingdom < 0) continue;
         const k = game.kingdoms[side.kingdom];
@@ -318,9 +353,8 @@ function fieldBattles(game: Game) {
         else k.stats.battlesLost++;
         game.event(k, `Your army ${won ? 'won' : 'lost'} a field battle against ${name((side === a ? b : a).kingdom)} (${fell} fell)`);
       }
-      if (loser.kingdom === -1) {
-        if (armySize(loser) <= 0) removeArmy(game, loser);
-      } else if (armySize(loser) <= 0) removeArmy(game, loser);
+      if (loser.kingdom === -1) removeArmy(game, loser); // beaten raiders scatter
+      else if (armySize(loser) <= 0) removeArmy(game, loser);
       else sendHome(game, loser);
       if (armySize(winner) <= 0) removeArmy(game, winner);
     }

@@ -27,13 +27,9 @@ export const CHRONICLE_TEMPLATES: Record<string, string[]> = {
     'The {a} named the {b} its enemy. Blood will follow.',
   ],
   muster: [
-    'The {a} mustered {n} troops and marched on the {b}.',
-    'War drums beat in the halls of the {a}; {n} spears set out against the {b}.',
-    'A host of {n} left the {a} with the {b} in its sights.',
-  ],
-  muster_raid: [
-    'Raiders of the {a}, {n} strong, rode out toward the {b}.',
-    'The {a} sent {n} raiders to plunder the {b}.',
+    'The {a} mustered {troops} and marched on the {b}.',
+    'War drums beat in the halls of the {a}; {troops} set out against the {b}.',
+    'The {a} sent {troops} against the {b}.',
   ],
   barracks: [
     'The {a} began raising a barracks at {town}. Their neighbours took note.',
@@ -52,21 +48,25 @@ export const CHRONICLE_TEMPLATES: Record<string, string[]> = {
     'Wagons of {res} ({n}) rolled from the {a} to the {b}.',
   ],
   attack_win: [
-    'The {a} stormed the {bld} of {town} and burned it. ({n} fell)',
-    'The {a} overran the {b} at the {bld} near {town}. ({n} fell)',
-    'Fire took the {bld} of {town}; the {a} were victorious. ({n} fell)',
+    'The {a} stormed the {bld} of {town} and burned it.{fell}',
+    'The {a} overran the {b} at the {bld} near {town}.{fell}',
+    'Fire took the {bld} of {town}; the {a} were victorious.{fell}',
   ],
   attack_lose: [
-    'The {b} held firm at {town}. The {a} were driven back. ({n} fell)',
-    'The {a} broke upon the defenders of {town}. ({n} fell)',
+    'The {b} held firm at {town}. The {a} were driven back.{fell}',
+    'The {a} broke upon the defenders of {town}.{fell}',
   ],
   raid: [
     'Raiders of the {a} plundered the {bld} of {town}, carrying off {loot}.',
     'The {a} raided {town} and fled with {loot}.',
   ],
+  raid_again: [
+    'Again the {a} raided {town}, their {nth} raid in a row. The {b} could not stop them.',
+    'The {a} returned to plunder {town} once more ({n} raids running), taking {loot}.',
+  ],
   field_battle: [
-    'The armies of the {a} and the {b} clashed in the field. The {w} prevailed. ({n} fell)',
-    'Steel met steel between the {a} and the {b}. The {w} won the day. ({n} fell)',
+    'The armies of the {a} and the {b} clashed in the field. The {w} prevailed.{fell}',
+    'Steel met steel between the {a} and the {b}. The {w} won the day.{fell}',
   ],
   starvation: [
     'Famine struck the {a}. {n} perished for want of bread.',
@@ -81,12 +81,16 @@ export const CHRONICLE_TEMPLATES: Record<string, string[]> = {
     'A warband of {n} raiders crawled out of the wastes.',
   ],
   monsters_win: [
-    'Raiders burned the {bld} of {town}. ({n} fell)',
-    'The wild raiders sacked the {bld} near {town}. ({n} fell)',
+    'Raiders burned the {bld} of {town}.{fell}',
+    'The wild raiders sacked the {bld} near {town}.{fell}',
   ],
   monsters_lose: [
-    'The {a} slew the raiders at {town}. ({n} fell)',
-    'Raiders were cut down by the {a} near {town}. ({n} fell)',
+    'The {a} slew the raiders at {town}.',
+    'Raiders were cut down by the {a} near {town}.',
+  ],
+  monsters_lose_after: [
+    'The {a} finally slew the raiders at {town}, but not before {burned} burned.',
+    'Raiders burned {burned} near {town} before the {a} cut them down.',
   ],
   god_bless: [
     'A blessing fell upon the {a}: {n} {res} appeared in their stores.',

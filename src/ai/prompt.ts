@@ -37,6 +37,8 @@ RULES
 - Units: worker (${cost(U.worker.cost)}), soldier (${cost(U.soldier.cost)}, power 3), archer (${cost(U.archer.cost)}, power 2, +2 when defending behind walls). Population cannot exceed cap.
 - Armies: "attack" (march on a kingdom, destroy buildings; taking the town hall destroys that kingdom), "raid" (steal resources from an outer building, then return), "defend"/"retreat" (bring all armies home). Attacking someone you are not at war with declares war. You cannot attack an ally; you must break_alliance first (a betrayal everyone will remember).
 - Diplomacy types: message, propose_alliance, accept_alliance, break_alliance, declare_war, offer_peace, send_tribute (needs resource + amount), demand_tribute (resource + amount). An alliance forms only when both sides propose/accept within ${CONFIG.diplomacy.proposalWindowTurns} turns. Peace needs both sides to offer_peace.
+- Defence: a town hall alone fights like about ${Math.round(CONFIG.buildings.hall.defense / CONFIG.combat.soldierPower)} soldiers, and ALL troops at home (plus workers) defend it. To take a town, send clearly more troops than their estimated army plus ${Math.round(CONFIG.buildings.hall.defense / CONFIG.combat.soldierPower)}. Sending a handful of troops only gets them killed.
+- Raids steal resources but burn nothing. Only an "attack" destroys buildings and can end a kingdom.
 - Other rulers may lie. Army sizes you see are estimates (a rough range when the rival is far away).
 
 HOW TO RULE (important)
@@ -95,6 +97,7 @@ export function buildStateObject(game: Game, k: Kingdom) {
         kingdom: o.name,
         relation: rel,
         estimated_army: rel === 'allied' || near ? estimate(mil, rand) : rough(mil),
+        buildings_seen: buildingsOf(game, o).filter((b) => b.type !== 'wall').length,
         distance: near ? 'near' : 'far',
       };
     });

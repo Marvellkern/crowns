@@ -70,6 +70,8 @@ export class Game {
   godReadyAt: Partial<Record<GodPower, number>> = {};
   /** One sample per season: troops (home + field) per kingdom, for the stats overlay. */
   history: { turn: number; army: number[] }[] = [];
+  /** Consecutive raids by attacker>target, so repeated raids are summarised in the Chronicle. */
+  raidStreaks = new Map<string, { count: number; turn: number }>();
 
   over = false;
   winner = -1;

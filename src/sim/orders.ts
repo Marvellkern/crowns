@@ -9,7 +9,7 @@
 import { CONFIG } from '../config';
 import { RESOURCES, type BuildingType, type Kingdom, type Res, type UnitType } from './types';
 import { canAfford, counts, findBuildSite, maxAffordable, pay, placeBuilding, popCap } from './kingdom';
-import { raiseArmy, sendHome } from './combat';
+import { raiseArmy, sendHome, troops } from './combat';
 import { DIP_TYPES, applyDiplomacy, cleanText, declareWar, type DipOrder, type DipType } from './diplomacy';
 import type { Game } from './game';
 
@@ -184,7 +184,8 @@ export function executeOrders(game: Game, k: Kingdom, o: Orders): string[] {
     if (army) {
       const n = army.soldiers + army.archers;
       game.event(target, `Scouts report an army of ~${n} from ${k.name} marching toward you`);
-      game.log(a.action === 'raid' ? 'muster_raid' : 'muster', { a: k.name, b: target.name, n }, k.hx, k.hy);
+      // raids are logged when they land (see combat.ts); only full attacks get a muster line
+      if (a.action === 'attack') game.log('muster', { a: k.name, b: target.name, troops: troops(n) }, k.hx, k.hy);
       game.focusOn(k.hx, k.hy);
       done.push(`${a.action === 'raid' ? 'raided' : 'attacked'} ${target.name} with ${n}`);
     }
