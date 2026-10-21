@@ -81,13 +81,26 @@ export class Council {
         responseText = JSON.stringify(mockOrders(game, k));
         tokensOut = approxTokens(responseText);
       } else {
-        const res = await chat(this.opts.apiKey, k.model, [
-          { role: 'system', content: system },
-          { role: 'user', content: `Current state:\n${state}\n\nGive your orders for this season as JSON only.` },
-        ]);
+        const messages = [
+          { role: 'system' as const, content: system },
+          { role: 'user' as const, content: `Current state:\n${state}\n\nGive your orders for this season as JSON only.` },
+        ];
+        const res = await chat(this.opts.apiKey, k.model, messages);
         responseText = res.text;
         if (res.tokensIn) tokensIn = res.tokensIn;
         tokensOut = res.tokensOut ?? approxTokens(responseText);
+        // one second chance if the reply was empty or not JSON
+        if (!parseAIResponse(responseText).ok) {
+          const retry = await chat(this.opts.apiKey, k.model, [
+            ...messages,
+            { role: 'assistant', content: responseText.slice(0, 2000) || '(empty)' },
+            { role: 'user', content: 'That was not valid JSON. Reply again with ONLY the JSON object, starting with { and ending with }.' },
+          ]);
+          responseText = `${responseText}\n\n--- retry (first reply was not valid JSON) ---\n${retry.text}`;
+          tokensIn += retry.tokensIn ?? 0;
+          tokensOut += retry.tokensOut ?? approxTokens(retry.text);
+          if (parseAIResponse(retry.text).ok) responseText = retry.text + `\n\n--- (first reply, not valid JSON) ---\n${res.text}`;
+        }
       }
     } catch (e: any) {
       error = e instanceof RateLimitError ? 'rate limited (429): skipping this turn' : String(e?.message ?? e);

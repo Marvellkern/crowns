@@ -62,9 +62,13 @@ async function once(key: string, model: string, messages: ChatMessage[], jsonMod
       (err as any).status = res.status;
       throw err;
     }
-    const text = data?.choices?.[0]?.message?.content;
+    const msg = data?.choices?.[0]?.message;
+    // some "thinking" models (e.g. DeepSeek V3.1 on certain providers) leave content
+    // empty and put everything in a reasoning field; fall back to that
+    let text = typeof msg?.content === 'string' ? msg.content : '';
+    if (!text.trim() && typeof msg?.reasoning === 'string') text = msg.reasoning;
     return {
-      text: typeof text === 'string' ? text : '',
+      text,
       tokensIn: data?.usage?.prompt_tokens,
       tokensOut: data?.usage?.completion_tokens,
     };

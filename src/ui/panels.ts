@@ -30,6 +30,23 @@ export function chronicleText(game: Game): string {
   return lines.join('\r\n');
 }
 
+/** Every AI call as plain text (prompts, replies, errors, rejections). Never contains the API key. */
+export function debugText(game: Game): string {
+  const out = ['CROWNS DEBUG LOG', `World seed: ${game.setup.seed} · reached ${game.when()}`, ''];
+  for (const d of game.debug) {
+    const who = game.kingdoms[d.kingdom]?.name ?? 'The Bard';
+    out.push(
+      `=== ${game.when(d.turn)} · ${who} · ${d.model} · ${d.latencyMs}ms · ~${d.tokensIn}->${d.tokensOut} tokens`,
+      ...(d.error ? [`ERROR: ${d.error}`] : []),
+      ...d.rejected.map((r) => `REJECTED: ${r}`),
+      '--- reply ---',
+      d.response || '(none)',
+      '',
+    );
+  }
+  return out.join('\r\n');
+}
+
 export function downloadText(filename: string, text: string) {
   const blob = new Blob([text], { type: 'text/plain;charset=utf-8' });
   const url = URL.createObjectURL(blob);
@@ -75,11 +92,13 @@ export class Panels {
   ) {
     this.chronEl.innerHTML = `<div class="tabtools"><button class="btn small" id="exportBtn">Export Chronicle (.txt)</button></div><div id="chronList"></div>`;
     this.dipEl.innerHTML = `<div id="dipList"><p class="dim" id="dipEmpty">No envoys have ridden yet.</p></div>`;
-    this.debugEl.innerHTML = `<p class="note">Raw prompts and replies per Council Turn (newest first). Your API key is never shown here.</p><div id="debugList"></div>`;
+    this.debugEl.innerHTML = `<div class="tabtools"><button class="btn small" id="debugExport">Download debug log (.txt)</button></div><p class="note">Raw prompts and replies per Council Turn (newest first). Your API key is never shown here.</p><div id="debugList"></div>`;
     this.chronList = document.getElementById('chronList')!;
     this.dipList = document.getElementById('dipList')!;
     this.debugList = document.getElementById('debugList')!;
     document.getElementById('exportBtn')!.onclick = () => ctl.exportChronicle();
+    document.getElementById('debugExport')!.onclick = () =>
+      downloadText(`crowns-debug-${game.setup.seed.replace(/[^a-z0-9-_]+/gi, '_')}.txt`, debugText(game));
 
     document.querySelectorAll<HTMLButtonElement>('#tabs .tab').forEach((t) => {
       t.onclick = () => {
