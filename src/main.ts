@@ -171,28 +171,32 @@ let acc = 0;
 let lastUi = 0;
 const keys = new Set<string>();
 
+/** Advance the sim by `dtMs` of real time (times the game speed), up to maxTicks. */
+function advance(dtMs: number, maxTicks: number) {
+  if (!S || paused || S.game.over) return;
+  try {
+    acc += dtMs * speed;
+    const tickMs = 1000 / CONFIG.sim.ticksPerSecond;
+    let n = 0;
+    while (acc >= tickMs && n < maxTicks && !S.game.over) {
+      S.game.step();
+      acc -= tickMs;
+      n++;
+    }
+    if (n >= maxTicks) acc = 0; // too far behind: drop the rest rather than stall
+  } catch (e) {
+    // a sim bug should never freeze the page; log it and keep going
+    console.error('sim error', e);
+  }
+}
+
 function frame(now: number) {
   rafId = requestAnimationFrame(frame);
   if (!S) return;
   const dt = Math.min(250, now - last);
   last = now;
   const g = S.game;
-  try {
-    if (!paused && !g.over) {
-      acc += dt * speed;
-      const tickMs = 1000 / CONFIG.sim.ticksPerSecond;
-      let n = 0;
-      while (acc >= tickMs && n < CONFIG.sim.maxTicksPerFrame) {
-        g.step();
-        acc -= tickMs;
-        n++;
-      }
-      if (n >= CONFIG.sim.maxTicksPerFrame) acc = 0;
-    }
-  } catch (e) {
-    // a sim bug should never freeze the page; log it and keep going
-    console.error('sim error', e);
-  }
+  advance(dt, CONFIG.sim.maxTicksPerFrame);
   // WASD / arrow panning
   const p = (CONFIG.render.panSpeed * dt) / 1000;
   if (keys.has('a') || keys.has('arrowleft')) renderer.pan(-p, 0);
@@ -209,6 +213,18 @@ function frame(now: number) {
     if (hoverTile && !tooltip.classList.contains('hidden')) tooltip.innerHTML = describeTile(g, hoverTile.x, hoverTile.y);
   }
 }
+
+// Background play: browsers stop requestAnimationFrame in hidden tabs, but
+// still run timers (about once a second, or once a minute after a while).
+// If no frame has run for a bit, catch the sim up here instead.
+setInterval(() => {
+  if (!CONFIG.sim.runInBackground) return;
+  const now = performance.now();
+  if (now - last < 400) return; // frames are running normally
+  const dt = Math.min(now - last, CONFIG.sim.maxBackgroundCatchupSec * 1000);
+  last = now;
+  advance(dt, CONFIG.sim.maxBackgroundCatchupSec * CONFIG.sim.ticksPerSecond * Math.max(...CONFIG.sim.speeds));
+}, 500);
 
 // ---------- input ----------
 let drag: { x: number; y: number; moved: boolean } | null = null;

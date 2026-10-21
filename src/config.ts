@@ -20,6 +20,10 @@ export const CONFIG = {
     speeds: [1, 2, 4, 8, 20] as number[],
     /** Safety cap so a slow frame never runs hundreds of ticks at once. */
     maxTicksPerFrame: 40,
+    /** Keep playing when the tab is hidden (AI turns keep happening and cost tokens). */
+    runInBackground: true,
+    /** Longest gap (real seconds) caught up in one go while hidden. */
+    maxBackgroundCatchupSec: 120,
   },
 
   map: {
