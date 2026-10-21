@@ -32,7 +32,7 @@ function scrub(msg: string, key: string) {
   return out.replace(/sk-or-[A-Za-z0-9_-]+/g, '[redacted]').slice(0, 300);
 }
 
-async function once(key: string, model: string, messages: ChatMessage[], jsonMode: boolean): Promise<ChatResult> {
+async function once(key: string, model: string, messages: ChatMessage[], jsonMode: boolean, maxTokens: number): Promise<ChatResult> {
   const ctrl = new AbortController();
   const timer = setTimeout(() => ctrl.abort(), CONFIG.ai.timeoutMs);
   try {
@@ -40,7 +40,7 @@ async function once(key: string, model: string, messages: ChatMessage[], jsonMod
       model,
       messages,
       temperature: CONFIG.ai.temperature,
-      max_tokens: CONFIG.ai.maxTokens,
+      max_tokens: maxTokens,
     };
     if (jsonMode) body.response_format = { type: 'json_object' };
     const res = await fetch(ENDPOINT, {
@@ -76,16 +76,24 @@ async function once(key: string, model: string, messages: ChatMessage[], jsonMod
   }
 }
 
-export async function chat(key: string, model: string, messages: ChatMessage[]): Promise<ChatResult> {
+/** opts.json=false asks for plain text (used by the bard). */
+export async function chat(
+  key: string,
+  model: string,
+  messages: ChatMessage[],
+  opts: { json?: boolean; maxTokens?: number } = {},
+): Promise<ChatResult> {
+  const json = opts.json ?? true;
+  const max = opts.maxTokens ?? CONFIG.ai.maxTokens;
   try {
     try {
-      return await once(key, model, messages, true);
+      return await once(key, model, messages, json, max);
     } catch (e: any) {
       if (e instanceof RateLimitError) throw e;
       // model does not support JSON mode -> try plain
-      if (e?.status === 400 && /response_format|json/i.test(String(e.message))) return await once(key, model, messages, false);
+      if (e?.status === 400 && /response_format|json/i.test(String(e.message))) return await once(key, model, messages, false, max);
       // network error (fetch threw TypeError) -> retry once
-      if (e instanceof TypeError) return await once(key, model, messages, true);
+      if (e instanceof TypeError) return await once(key, model, messages, json, max);
       throw e;
     }
   } catch (e: any) {

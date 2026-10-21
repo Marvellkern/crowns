@@ -8,6 +8,7 @@
  */
 import { CONFIG } from '../config';
 import type {
+  Ballad,
   Army,
   Building,
   BuildingType,
@@ -38,6 +39,8 @@ export interface KingdomSetup {
 
 export interface GameSetup {
   seed: string;
+  /** Bard mode: yearly prose retelling. Optional so older saved settings still load. */
+  bard?: { enabled: boolean; model: string };
   size: string; // S | M | L
   councilSec: number;
   kingdoms: KingdomSetup[];
@@ -71,6 +74,7 @@ export class Game {
   /** One sample per season: troops (home + field) per kingdom, for the stats overlay. */
   history: { turn: number; army: number[] }[] = [];
   /** Consecutive raids by attacker>target, so repeated raids are summarised in the Chronicle. */
+  ballads: Ballad[] = [];
   raidStreaks = new Map<string, { count: number; turn: number }>();
 
   over = false;
@@ -80,6 +84,8 @@ export class Game {
 
   onCouncil: (() => void) | null = null;
   onEnd: (() => void) | null = null;
+  /** Fired with the year number when a year ends (and for the final year when the age ends). */
+  onYearEnd: ((year: number) => void) | null = null;
 
   constructor(setup: GameSetup) {
     this.setup = setup;
@@ -233,7 +239,10 @@ export class Game {
       this.end('time');
       return;
     }
-    if (this.councilCount > 0) this.turn++;
+    if (this.councilCount > 0) {
+      this.turn++;
+      if (this.turn % CONFIG.sim.seasonsPerYear === 0) this.onYearEnd?.(this.year - 1);
+    }
     this.councilCount++;
     for (const k of this.kingdoms) {
       if (!k.alive) continue;
@@ -294,6 +303,7 @@ export class Game {
       this.log('victory', { a: w.name }, w.hx, w.hy);
       this.focusOn(w.hx, w.hy);
     }
+    this.onYearEnd?.(this.year);
     this.onEnd?.();
   }
 }

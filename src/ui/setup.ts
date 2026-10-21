@@ -114,6 +114,13 @@ export function showSetup(root: HTMLElement, prev: GameSetup | null, onBegin: (r
     <div class="kcards-setup">${kHtml}</div>
 
     <div class="setup-row">
+      <label class="check"><input type="checkbox" id="bardOn" ${base?.bard?.enabled === false ? '' : 'checked'}> Bard mode: each year is retold as epic prose</label>
+      <div class="field grow"><label>Bard model (one call per year, about 20 per game)</label>
+        <input id="bardModel" list="model-list" spellcheck="false" value="${esc(base?.bard?.model ?? CONFIG.bard.defaultModel)}">
+      </div>
+    </div>
+
+    <div class="setup-row">
       <button class="btn primary begin" id="begin">Begin the Age</button>
       <span class="error" id="setuperr"></span>
     </div>
@@ -163,6 +170,10 @@ export function showSetup(root: HTMLElement, prev: GameSetup | null, onBegin: (r
       seed: $<HTMLInputElement>('#seed').value.trim() || randomSeed(),
       size: $<HTMLSelectElement>('#size').value,
       councilSec: Number(interval.value),
+      bard: {
+        enabled: $<HTMLInputElement>('#bardOn').checked,
+        model: $<HTMLInputElement>('#bardModel').value.trim() || CONFIG.bard.defaultModel,
+      },
       kingdoms,
     };
     // remember everything except the key (which has its own slot above)

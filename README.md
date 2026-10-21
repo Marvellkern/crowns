@@ -125,4 +125,5 @@ src/
 - **Balance additions** not in the brief, to stop endless stockpiles: troops are paid a small gold wage (unpaid troops desert), storage caps at 800 of each resource, and worker births stop at 60% of the pop cap so there is room for an army. Random raider bands appear sometimes so peaceful games still have drama.
 - **Model list:** suggestions only, editable in `config.ts`. Model IDs change often on OpenRouter, so if one stops working, swap it.
 - **Mock AI:** goes through the exact same JSON parse + validation path as a real model.
-- **Not built yet (stretch goals):** serverless key proxy, Bard mode, replays, stats overlay, 2–6 kingdoms.
+- **Bard mode:** on by default (setup screen). One call per year to the bard model (default gpt-4o-mini, about $0.02 per game). Without a key, an offline bard stitches the year's biggest lines together. Ballads appear in the Bard tab, as the cinematic subtitle for a few seconds, on the end screen, and in the exported Chronicle.
+- **Not built yet (stretch goals):** serverless key proxy, replays, 2–6 kingdoms.

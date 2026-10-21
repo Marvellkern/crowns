@@ -115,6 +115,10 @@ body.nostats #stats { display: none; }
 .cline.big { color: #fff; }
 .cline.big .text { font-weight: 700; }
 .cline.alert .text { color: #ffb37a; }
+.ballad { padding: 6px 0 10px; border-bottom: 1px dashed #1f242b; }
+.ballad .when { font-weight: 700; }
+.ballad p { margin: 4px 0 0; font-style: italic; color: #e6e0cf; line-height: 1.55; }
+#endBallad { font-style: italic; color: #e6e0cf; line-height: 1.55; margin: 8px 0 0; }
 .dmsg { padding: 4px 0; border-bottom: 1px dashed #1f242b; }
 .dmsg .meta { font-size: 11px; color: var(--text-dim); }
 .dmsg .body { border-left: 3px solid var(--sc); padding-left: 8px; }
@@ -162,3 +166,4 @@ body.cinematic #exitCinematic:hover { opacity: 1; }
   #godbar input { width: 100%; }
   .title { font-size: 30px; }
 }
+body.cinematic #subtitle i { display: block; font-size: 17px; line-height: 1.5; }

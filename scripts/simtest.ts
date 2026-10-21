@@ -7,6 +7,7 @@
  */
 import { Game } from '../src/sim/game';
 import { Council } from '../src/ai/council';
+import { Bard } from '../src/ai/bard';
 import { CONFIG } from '../src/config';
 import { counts } from '../src/sim/kingdom';
 import { T } from '../src/sim/types';
@@ -39,6 +40,8 @@ for (let g = 0; g < games; g++) {
   }
   const council = new Council(game, { apiKey: '', instantMock: true });
   game.onCouncil = () => council.runTurn();
+  const bard = new Bard(game, { apiKey: '', model: 'mock', instant: true });
+  game.onYearEnd = (y) => bard.sing(y);
   const t0 = Date.now();
   try {
     const maxTicks = (CONFIG.sim.maxYears * 4 + 2) * game.councilTicks + 100;
@@ -60,6 +63,8 @@ for (let g = 0; g < games; g++) {
     for (const c of game.chronicle.slice(0, 40)) console.log(`${c.when}: ${c.text}`);
     console.log('...');
     for (const c of game.chronicle.slice(-8)) console.log(`${c.when}: ${c.text}`);
+    console.log('--- ballads: ' + game.ballads.length + ' (years ' + game.ballads.map((b) => b.year).join(',') + ') ---');
+    for (const b of game.ballads.slice(2, 4)) console.log('Year ' + b.year + ': ' + b.text);
     const rej = game.debug.flatMap((d) => d.rejected).slice(0, 8);
     console.log('--- sample rejections ---\n' + rej.join('\n'));
   }

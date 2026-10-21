@@ -197,6 +197,17 @@ export const CONFIG = {
   ],
   defaultModels: ['openai/gpt-4o-mini', 'google/gemini-2.5-flash', 'deepseek/deepseek-chat-v3.1'],
 
+  /** Bard mode: one cheap AI call per year retells the Chronicle as prose. */
+  bard: {
+    defaultModel: 'openai/gpt-4o-mini',
+    maxLines: 25, // Chronicle lines sent per year (most important first)
+    minWords: 50,
+    maxWords: 90,
+    maxTokens: 300,
+    /** Seconds a new ballad stays as the cinematic subtitle. */
+    subtitleSec: 14,
+  },
+
   render: {
     zoomLevels: [12, 16, 24],
     defaultZoom: 1,

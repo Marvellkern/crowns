@@ -127,9 +127,19 @@ export interface DipMsg {
   text: string;
 }
 
+/** One year of the Chronicle retold as prose by the bard (Bard mode). */
+export interface Ballad {
+  year: number;
+  text: string;
+  model: string;
+  pending: boolean;
+  /** performance.now() when it arrived (for the cinematic subtitle). */
+  at: number;
+}
+
 export interface DebugEntry {
   turn: number;
-  kingdom: number;
+  kingdom: number; // -1 = the bard
   model: string;
   latencyMs: number;
   tokensIn: number;

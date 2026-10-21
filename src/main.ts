@@ -10,6 +10,7 @@ import './style.css';
 import { CONFIG } from './config';
 import { Game, type GameSetup } from './sim/game';
 import { Council } from './ai/council';
+import { Bard } from './ai/bard';
 import { Renderer } from './render/renderer';
 import { describeTile, esc } from './render/tooltip';
 import { Panels, chronicleText, downloadText } from './ui/panels';
@@ -68,6 +69,10 @@ function startGame(setup: GameSetup, apiKey: string) {
   const council = new Council(game, { apiKey });
   game.onCouncil = () => council.runTurn();
   game.onEnd = () => setTimeout(showEnd, 1500);
+  if (setup.bard?.enabled !== false) {
+    const bard = new Bard(game, { apiKey, model: setup.bard?.model ?? CONFIG.bard.defaultModel });
+    game.onYearEnd = (year) => bard.sing(year);
+  }
   const god = new GodBar(game);
   const panels = new Panels(game, {
     getSpeed: () => speed,
@@ -118,6 +123,7 @@ function showEnd() {
     <h1>${w ? `The ${esc(w.name)} rule the land` : 'No kingdom survived'}</h1>
     ${w ? `<div>Ruled by <b>${esc(w.useMock ? 'mock AI' : w.model)}</b> as a ${esc(getPersona(w.personaKey).label)}. Capital: ${esc(w.town)}.</div>` : ''}
     <table><thead><tr><th>Kingdom</th><th>Model</th><th>Persona</th><th>Fate</th><th>Peak army</th><th>Battles won</th><th>Betrayals</th><th>Resources gathered</th></tr></thead><tbody>${rows}</tbody></table>
+    <p id="endBallad"></p>
     <div class="endbtns">
       <button class="btn primary" id="endExport">Export Chronicle</button>
       <button class="btn" id="endReplay">Play again with same seed</button>
@@ -160,8 +166,15 @@ function updateCinematic(dtMs: number, now: number) {
   const c = renderer.centerTile();
   const t = 1 - Math.pow(0.5, dtMs / 900); // smooth, slow pan
   renderer.centerOnTile(c.x - 0.5 + (cineTarget.x - (c.x - 0.5)) * t, c.y - 0.5 + (cineTarget.y - (c.y - 0.5)) * t);
+  // a fresh ballad takes over the subtitle for a while; otherwise the latest Chronicle line
+  const ballad = [...g.ballads].reverse().find((b) => !b.pending);
   const lastLine = g.chronicle[g.chronicle.length - 1];
-  const html = lastLine ? `<span class="when">${esc(lastLine.when)}</span>${esc(lastLine.text)}` : '';
+  const html =
+    ballad && now - ballad.at < CONFIG.bard.subtitleSec * 1000
+      ? `<span class="when">The ballad of Year ${ballad.year}</span><i>${esc(ballad.text)}</i>`
+      : lastLine
+        ? `<span class="when">${esc(lastLine.when)}</span>${esc(lastLine.text)}`
+        : '';
   if (subtitle.innerHTML !== html) subtitle.innerHTML = html;
 }
 
@@ -209,6 +222,9 @@ function frame(now: number) {
     lastUi = now;
     S.panels.update();
     S.god.update();
+    const endBallad = document.getElementById('endBallad');
+    const fin = g.over ? g.ballads.find((b) => b.year === g.year && !b.pending) : null;
+    if (endBallad && fin && !endBallad.textContent) endBallad.textContent = fin.text;
     if (!document.body.classList.contains('nostats')) stats.draw(g);
     if (hoverTile && !tooltip.classList.contains('hidden')) tooltip.innerHTML = describeTile(g, hoverTile.x, hoverTile.y);
   }

@@ -23,6 +23,9 @@ export function chronicleText(game: Game): string {
     '',
     ...game.chronicle.map((c) => `${c.when}: ${c.text}`),
     '',
+    ...(game.ballads.some((b) => !b.pending)
+      ? ['THE BALLADS OF THE AGE', '', ...game.ballads.filter((b) => !b.pending).flatMap((b) => [`Year ${b.year}`, b.text, ''])]
+      : []),
   ];
   return lines.join('\r\n');
 }
@@ -59,6 +62,8 @@ export class Panels {
   private chronEl = document.getElementById('tab-chronicle')!;
   private dipEl = document.getElementById('tab-diplomacy')!;
   private debugEl = document.getElementById('tab-debug')!;
+  private bardEl = document.getElementById('tab-bard')!;
+  private bardSig = '';
   private topEl = document.getElementById('topbar')!;
   private chronList!: HTMLElement;
   private dipList!: HTMLElement;
@@ -186,6 +191,21 @@ export class Panels {
         <div class="body" style="--sc:${sc}">${esc(m.text)}</div>`;
       this.dipList.prepend(el);
     }
+    // ---- bard ----
+    const sig = g.ballads.map((b) => `${b.year}${b.pending ? 'p' : ''}`).join(',');
+    if (sig !== this.bardSig) {
+      this.bardSig = sig;
+      this.bardEl.innerHTML = g.ballads.length
+        ? [...g.ballads]
+            .reverse()
+            .map(
+              (b) => `<div class="ballad"><div class="when">Year ${b.year} <span class="dim">· ${esc(b.model)}</span></div>${
+                b.pending ? '<p class="thinking">the bard is composing…</p>' : `<p>${esc(b.text)}</p>`
+              }</div>`,
+            )
+            .join('')
+        : `<p class="dim">${g.setup.bard?.enabled === false ? 'Bard mode is off (turn it on in setup).' : 'The bard sings at the end of each year.'}</p>`;
+    }
     // ---- debug ----
     for (const d of g.debug.slice(-30)) {
       if (this.debugShown.has(d)) continue;
@@ -203,7 +223,7 @@ export class Panels {
   }
 
   private debugItem(d: DebugEntry) {
-    const k = this.game.kingdoms[d.kingdom];
+    const k = this.game.kingdoms[d.kingdom] ?? { name: 'The Bard', color: '#b07cff' };
     const el = document.createElement('details');
     el.className = 'dbg';
     const flags = [d.error ? `<span class="rej">${esc(d.error)}</span>` : '', d.rejected.length ? `<span class="rej">${d.rejected.length} rejected</span>` : '']
