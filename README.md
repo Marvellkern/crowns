@@ -28,7 +28,7 @@ Open the address it prints (usually http://localhost:5173). On the setup screen,
 **"Offline / Mock AI"** ticked to play without any key, then press **Begin the Age**.
 
 **Controls:** drag or WASD to move the map · mouse wheel to zoom · Space to pause ·
-1/2/3 for speed · C for cinematic mode · Esc to cancel a god power · click a kingdom card to jump to it.
+1–5 for speed (1×, 2×, 4×, 8×, 20×) · C for cinematic mode · Esc to cancel a god power · click a kingdom card to jump to it.
 
 ---
 

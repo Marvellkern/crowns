@@ -16,7 +16,8 @@ export const CONFIG = {
     seasonsPerYear: 4,
     /** The age ends after this many years; strongest kingdom wins. */
     maxYears: 20,
-    speeds: [1, 2, 4] as number[],
+    /** Speed buttons; keys 1-5 pick them in order. */
+    speeds: [1, 2, 4, 8, 20] as number[],
     /** Safety cap so a slow frame never runs hundreds of ticks at once. */
     maxTicksPerFrame: 40,
   },

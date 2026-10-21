@@ -195,10 +195,19 @@ export class Game {
     this.markers = this.markers.filter((m) => m.ttl > 0);
     if (this.over) return;
 
-    if (--this.councilCountdown <= 0) {
+    // The next council waits until every ruler has answered the last one, so at
+    // high speed slow AIs get a longer season instead of skipping turns. The
+    // world keeps running while it waits.
+    if (this.councilCountdown > 0) this.councilCountdown--;
+    if (this.councilCountdown <= 0 && !this.waitingForRulers) {
       this.councilCountdown = this.councilTicks;
       this.councilBoundary();
     }
+  }
+
+  /** True while any living ruler is still answering the previous council. */
+  get waitingForRulers() {
+    return this.kingdoms.some((k) => k.alive && k.thinking);
   }
 
   setCouncilInterval(sec: number) {

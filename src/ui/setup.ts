@@ -117,7 +117,7 @@ export function showSetup(root: HTMLElement, prev: GameSetup | null, onBegin: (r
       <button class="btn primary begin" id="begin">Begin the Age</button>
       <span class="error" id="setuperr"></span>
     </div>
-    <p class="note">Controls: drag or WASD to pan · mouse wheel to zoom · Space pauses · C toggles cinematic mode · Esc cancels a god power.</p>
+    <p class="note">Controls: drag or WASD to pan · mouse wheel to zoom · Space pauses · keys 1-5 set speed (1×–20×) · C toggles cinematic mode · Esc cancels a god power.</p>
   </div>`;
 
   const $ = <T extends HTMLElement>(sel: string) => root.querySelector(sel) as T;

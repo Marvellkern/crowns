@@ -125,7 +125,9 @@ export class Panels {
     const anyThinking = g.kingdoms.some((k) => k.thinking);
     document.getElementById('tbCountdown')!.textContent = g.over
       ? 'The age has ended'
-      : `Council convenes in ${Math.floor(secs / 60)}:${String(secs % 60).padStart(2, '0')}${anyThinking ? ' · rulers deliberating…' : ''}`;
+      : secs <= 0 && anyThinking
+        ? 'Council waits for the rulers…'
+        : `Council convenes in ${Math.floor(secs / 60)}:${String(secs % 60).padStart(2, '0')}${anyThinking ? ' · rulers deliberating…' : ''}`;
 
     // ---- kingdom cards ----
     this.cardsEl.innerHTML = g.kingdoms

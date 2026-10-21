@@ -277,7 +277,7 @@ window.addEventListener('keydown', (e) => {
   else if (k === 'escape') {
     if (cinematic) setCinematic(false);
     S.god.select(null);
-  } else if (k === '1' || k === '2' || k === '3') speed = CONFIG.sim.speeds[Number(k) - 1] ?? 1;
+  } else if (/^[1-9]$/.test(k) && CONFIG.sim.speeds[Number(k) - 1]) speed = CONFIG.sim.speeds[Number(k) - 1];
 });
 window.addEventListener('keyup', (e) => keys.delete(e.key.toLowerCase()));
 window.addEventListener('blur', () => keys.clear());
