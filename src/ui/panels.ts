@@ -5,6 +5,7 @@
  */
 import { CONFIG } from '../config';
 import { counts, popCap } from '../sim/kingdom';
+import { settlementsOf } from '../sim/towns';
 import { getPersona } from '../ai/personas';
 import { esc } from '../render/tooltip';
 import type { Game } from '../sim/game';
@@ -183,7 +184,7 @@ export class Panels {
             k.alive
               ? `<div class="krow"><span>Food ${Math.floor(k.res.food)}</span><span>Wood ${Math.floor(k.res.wood)}</span><span>Gold ${Math.floor(k.res.gold)}</span></div>
           <div class="krow"><span title="workers">☺ ${c.workers}</span><span title="soldiers">! ${c.soldiers + c.fieldSoldiers}</span><span title="archers">} ${c.archers + c.fieldArchers}</span>
-            <span class="dim">pop ${c.pop}/${popCap(g, k)}</span>${marching ? `<span class="dim">marching ${marching}</span>` : ''}<span class="dim">morale ${Math.round(k.morale)}</span></div>
+            <span title="towns held">♜ ${settlementsOf(g, k).length}</span><span class="dim">pop ${c.pop}/${popCap(g, k)}</span>${marching ? `<span class="dim">marching ${marching}</span>` : ''}<span class="dim">morale ${Math.round(k.morale)}</span></div>
           <div class="chips">${chips}</div>`
               : ''
           }

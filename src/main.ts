@@ -115,14 +115,14 @@ function showEnd() {
     .map((k) => {
       const gathered = Math.round(k.stats.gathered.food + k.stats.gathered.wood + k.stats.gathered.gold);
       return `<tr><td style="color:${k.color};font-weight:700">${esc(k.name)}</td><td>${esc(k.useMock ? 'mock AI' : k.model)}</td><td>${esc(getPersona(k.personaKey).label)}</td>
-        <td>${k.alive ? 'standing' : 'fell ' + esc(g.when(k.fellTurn))}</td><td>${k.stats.peakArmy}</td><td>${k.stats.battlesWon}</td><td>${k.stats.betrayals}</td><td>${gathered}</td></tr>`;
+        <td>${k.alive ? 'standing' : 'fell ' + esc(g.when(k.fellTurn))}</td><td>${k.stats.peakTowns}</td><td>${k.stats.townsTaken}</td><td>${k.stats.peakArmy}</td><td>${k.stats.battlesWon}</td><td>${k.stats.betrayals}</td><td>${gathered}</td></tr>`;
     })
     .join('');
   endEl.innerHTML = `<div class="endbox" style="--kc:${w?.color ?? '#d6d9de'}">
     <div class="dim">${esc(g.when())} · ${g.endReason === 'conquest' ? 'Conquest' : `The ${CONFIG.sim.maxYears}-year age is over`}</div>
     <h1>${w ? `The ${esc(w.name)} rule the land` : 'No kingdom survived'}</h1>
     ${w ? `<div>Ruled by <b>${esc(w.useMock ? 'mock AI' : w.model)}</b> as a ${esc(getPersona(w.personaKey).label)}. Capital: ${esc(w.town)}.</div>` : ''}
-    <table><thead><tr><th>Kingdom</th><th>Model</th><th>Persona</th><th>Fate</th><th>Peak army</th><th>Battles won</th><th>Betrayals</th><th>Resources gathered</th></tr></thead><tbody>${rows}</tbody></table>
+    <table><thead><tr><th>Kingdom</th><th>Model</th><th>Persona</th><th>Fate</th><th>Most towns</th><th>Towns taken</th><th>Peak army</th><th>Battles won</th><th>Betrayals</th><th>Resources gathered</th></tr></thead><tbody>${rows}</tbody></table>
     <p id="endBallad"></p>
     <div class="endbtns">
       <button class="btn primary" id="endExport">Export Chronicle</button>

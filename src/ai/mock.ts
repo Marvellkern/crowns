@@ -11,6 +11,7 @@ import { buildingsOf, counts, popCap } from '../sim/kingdom';
 import type { Game } from '../sim/game';
 import type { Kingdom } from '../sim/types';
 import { getPersona } from './personas';
+import { allSettlements, localUnits, settlementsOf } from '../sim/towns';
 
 export function mockOrders(game: Game, k: Kingdom): Record<string, unknown> {
   const persona = getPersona(k.personaKey);
@@ -72,8 +73,36 @@ export function mockOrders(game: Game, k: Kingdom): Record<string, unknown> {
     const urge = p.aggression * 0.55 + (atWar.includes(target) ? 0.25 : 0) + Math.min(0.3, turn * 0.008);
     if (!peaceful && confident && r() < urge) {
       const raid = r() < 0.25 + p.goldLove * 0.2;
-      armies.push({ action: raid ? 'raid' : 'attack', target: target.name, size: Math.ceil(home * (raid ? 0.5 : 0.85)) });
+      // attacks go for the target's most weakly held town
+      const theirTowns = settlementsOf(game, target).map((t) => ({ t, g: localUnits(target, t.x, t.y).filter((u) => u.type !== 'worker').length }));
+      theirTowns.sort((a, b) => a.g - b.g);
+      // usually the weakest town; sometimes a strike at the capital to end them
+      const capital = theirTowns.find((x) => x.t.type === 'hall');
+      const pickCap = capital && (theirTowns.length <= 2 || r() < 0.3) && home > capital.g * 1.5 + 10;
+      const aim = raid || !theirTowns.length ? target.name : pickCap ? capital!.t.name! : theirTowns[0].t.name!;
+      armies.push({ action: raid ? 'raid' : 'attack', target: aim, size: Math.ceil(home * (raid ? 0.5 : 0.85)) });
     }
+  }
+
+  // --- towns: garrison a weak one, and expand ---
+  const myTowns = settlementsOf(game, k);
+  const bare = myTowns.filter((t) => t.type === 'town' && localUnits(k, t.x, t.y).filter((u) => u.type !== 'worker').length < 3);
+  if (bare.length && home >= 6 && !armies.length && r() < 0.35 + p.walls * 0.4)
+    armies.push({ action: 'defend', target: pick(bare).name!, size: 3 + Math.floor(r() * 3) });
+  const towns = myTowns.length + game.armies.filter((a) => a.kingdom === k.id && a.settlers > 0).length;
+  const landFull = allSettlements(game).length >= CONFIG.towns.maxOnMap;
+  const T = CONFIG.towns;
+  let found_town: { toward: string } | undefined;
+  if (
+    !landFull &&
+    towns < Math.min(T.maxPerKingdom, 1 + Math.floor((turn + 2) / 5)) &&
+    c.workers >= T.settlers + T.minWorkersLeft + 2 &&
+    k.res.food >= T.cost.food + 30 &&
+    k.res.wood >= T.cost.wood + 20 &&
+    r() < 0.6
+  ) {
+    const weakest = notAllied.length ? [...notAllied].sort((a, b) => game.strength(a) - game.strength(b))[0] : null;
+    found_town = { toward: weakest && r() < p.aggression * 0.6 ? weakest.name : 'center' };
   }
 
   // --- diplomacy ---
@@ -117,5 +146,6 @@ export function mockOrders(game: Game, k: Kingdom): Record<string, unknown> {
     train,
     armies,
     diplomacy,
+    ...(found_town ? { found_town } : {}),
   };
 }

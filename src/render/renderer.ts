@@ -17,6 +17,7 @@ const TERRAIN_COLOR = ['#1f4a6e', '#8a7a4a', '#3d5a2e', '#2f5a3a', '#6b6b6b'];
 const GRASS_GLYPHS = ['.', ',', '"', '.', "'", '.'];
 const BUILDING_GLYPH: Record<string, string> = {
   hall: 'Ħ',
+  town: 'ħ',
   farm: '≡',
   lumber: '¶',
   mine: '☼',
@@ -222,7 +223,7 @@ export class Renderer {
     for (const a of game.armies) {
       const t = game.buildings.get(a.targetBuilding);
       const k = a.kingdom >= 0 ? game.kingdoms[a.kingdom] : null;
-      const dest = a.action === 'return' && k ? { x: k.hx, y: k.hy } : t;
+      const dest = a.settlers > 0 ? { x: a.tx, y: a.ty } : a.action === 'return' && k ? { x: k.hx, y: k.hy } : t;
       if (!dest) continue;
       ctx.strokeStyle = hexA(k ? k.color : NEUTRAL, 0.4);
       ctx.beginPath();
@@ -237,10 +238,11 @@ export class Renderer {
       const k = game.kingdoms[b.kingdom];
       const done = b.buildLeft === 0;
       const isHall = b.type === 'hall';
+      const isTown = b.type === 'town';
       glyph(b.x, b.y, BUILDING_GLYPH[b.type], k.color, {
-        bold: isHall,
-        scale: isHall ? 1.05 : 0.9,
-        bg: isHall ? hexA(k.color, 0.28) : BG,
+        bold: isHall || isTown,
+        scale: isHall ? 1.05 : 0.95,
+        bg: isHall ? hexA(k.color, 0.28) : isTown ? hexA(k.color, 0.18) : BG,
         alpha: done ? (b.type === 'farm' ? 0.75 : 1) : 0.4,
       });
     }
@@ -258,6 +260,18 @@ export class Renderer {
     for (const a of game.armies) {
       if (!vis(a.x, a.y)) continue;
       const color = a.kingdom >= 0 ? game.kingdoms[a.kingdom].color : NEUTRAL;
+      if (a.settlers > 0) {
+        // settlers: an outlined square with a little person, so they read as civilians
+        ctx.fillStyle = BG;
+        ctx.fillRect(px(a.x), py(a.y), ts, ts);
+        ctx.strokeStyle = color;
+        ctx.lineWidth = Math.max(1, ts / 8);
+        ctx.strokeRect(px(a.x) + 1, py(a.y) + 1, ts - 2, ts - 2);
+        ctx.fillStyle = color;
+        ctx.font = this.font(ts * 0.75, true);
+        ctx.fillText('☺', px(a.x) + ts / 2, py(a.y) + ts / 2 + 1);
+        continue;
+      }
       const n = a.soldiers + a.archers + a.monsters;
       ctx.fillStyle = color;
       ctx.fillRect(px(a.x), py(a.y), ts, ts);
@@ -274,6 +288,22 @@ export class Renderer {
       } else {
         glyph(m.x, m.y, '*', Math.floor(now / 90 + m.x) % 2 ? ALERT : '#ffb35a', { bold: true });
       }
+    }
+
+    // town names above every settlement, so a clip shows who holds what
+    const labelSize = Math.max(10, Math.round(ts * 0.68));
+    for (const b of game.buildings.values()) {
+      if ((b.type !== 'hall' && b.type !== 'town') || !b.name || !vis(b.x, b.y)) continue;
+      const k = game.kingdoms[b.kingdom];
+      const text = b.type === 'hall' ? `♛ ${b.name}` : b.name;
+      ctx.font = this.font(labelSize, b.type === 'hall');
+      const w = ctx.measureText(text).width + 8;
+      const cx = px(b.x) + ts / 2;
+      const cy = py(b.y) - labelSize * 0.75;
+      ctx.fillStyle = 'rgba(11,13,16,0.78)';
+      ctx.fillRect(Math.round(cx - w / 2), Math.round(cy - labelSize * 0.62), Math.round(w), Math.round(labelSize * 1.24));
+      ctx.fillStyle = k.color;
+      ctx.fillText(text, cx, cy + 1);
     }
 
     if (this.hover) {

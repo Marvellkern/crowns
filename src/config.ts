@@ -82,11 +82,12 @@ export const CONFIG = {
   },
 
   /** maxHouses caps population (~70 per kingdom) so the map stays readable. */
-  pop: { hallCap: 10, houseCap: 5, maxHouses: 12 },
+  pop: { hallCap: 10, houseCap: 5, maxHouses: 12, townCap: 6, /** Hard ceiling per kingdom, however many towns it holds. */ maxCap: 90 },
 
   /** Building costs, construction time (ticks), HP, and territory radius. */
   buildings: {
-    hall: { cost: { food: 0, wood: 0, gold: 0 }, buildTicks: 0, hp: 100, territory: 7, defense: 14 },
+    hall: { cost: { food: 0, wood: 0, gold: 0 }, buildTicks: 0, hp: 100, territory: 7, defense: 20 },
+    town: { cost: { food: 0, wood: 0, gold: 0 }, buildTicks: 120, hp: 80, territory: 6, defense: 12 },
     farm: { cost: { food: 0, wood: 30, gold: 0 }, buildTicks: 80, hp: 40, territory: 3, defense: 2 },
     lumber: { cost: { food: 0, wood: 25, gold: 0 }, buildTicks: 80, hp: 40, territory: 3, defense: 2 },
     mine: { cost: { food: 0, wood: 40, gold: 0 }, buildTicks: 100, hp: 40, territory: 3, defense: 2 },
@@ -101,6 +102,30 @@ export const CONFIG = {
   maxBuildRadius: 16,
   /** Walls are placed in a ring this far (Chebyshev) from the hall. */
   wallRadius: 5,
+
+  /** Expansion: settlers found towns; towns can be captured. */
+  towns: {
+    /** Paid when settlers set out (on top of the workers who leave). */
+    cost: { food: 100, wood: 140, gold: 40 },
+    settlers: 4,
+    /** Workers that must stay behind when settlers leave. */
+    minWorkersLeft: 3,
+    maxPerKingdom: 4,
+    /** Settlements allowed on the whole map (capitals included). After that, grow by conquest. */
+    maxOnMap: 12,
+    /** No new town closer than this (tiles) to any other settlement. */
+    minSpacing: 15,
+    /** Furthest a new town may be from the founder's nearest settlement. */
+    maxDistance: 34,
+    /** New buildings may be placed this far from a town (capital uses maxBuildRadius). */
+    buildRadius: 9,
+    /** Troops and workers within this many tiles of a settlement defend it. */
+    defendRadius: 10,
+    /** A town makes a little food on its own, like the capital but less. */
+    foodPerSec: 0.2,
+    /** Morale lost when a kingdom's capital falls and it flees to another town. */
+    capitalLossMorale: 15,
+  },
 
   units: {
     worker: { cost: { food: 25, wood: 0, gold: 0 }, trainTicks: 60 },

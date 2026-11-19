@@ -12,7 +12,8 @@ export type Res = 'food' | 'wood' | 'gold';
 export const RESOURCES: Res[] = ['food', 'wood', 'gold'];
 export type Resources = Record<Res, number>;
 
-export type BuildingType = 'hall' | 'farm' | 'lumber' | 'mine' | 'house' | 'barracks' | 'wall';
+/** 'hall' = a kingdom's capital, 'town' = any other settlement it holds. */
+export type BuildingType = 'hall' | 'town' | 'farm' | 'lumber' | 'mine' | 'house' | 'barracks' | 'wall';
 export const BUILDABLE: BuildingType[] = ['farm', 'lumber', 'mine', 'house', 'barracks', 'wall'];
 
 export type UnitType = 'worker' | 'soldier' | 'archer';
@@ -26,6 +27,8 @@ export interface Building {
   y: number;
   hp: number;
   maxHp: number;
+  /** Settlement name (halls and towns only). */
+  name?: string;
   /** Ticks of construction left. 0 = finished and working. */
   buildLeft: number;
 }
@@ -45,9 +48,11 @@ export interface Unit {
   workLeft: number;
   carry: number;
   carryRes: Res;
+  /** Settlement this unit belongs to (garrison stands guard there, workers live there). */
+  post: number;
 }
 
-export type ArmyAction = 'attack' | 'raid' | 'return' | 'monster';
+export type ArmyAction = 'attack' | 'raid' | 'return' | 'monster' | 'settle' | 'station';
 
 /** Soldiers/archers marching together, rendered as one stacked glyph. Kingdom -1 = monsters. */
 export interface Army {
@@ -64,6 +69,13 @@ export interface Army {
   targetKingdom: number;
   targetBuilding: number;
   loot: Resources;
+  /** Settlers walking to found a town (action 'settle'). */
+  settlers: number;
+  /** Destination tile for settlers. */
+  tx: number;
+  ty: number;
+  /** Name the settlers will give their town. */
+  townName: string;
 }
 
 export interface KingdomStats {
@@ -73,6 +85,9 @@ export interface KingdomStats {
   betrayals: number;
   gathered: Resources;
   unitsLost: number;
+  townsFounded: number;
+  townsTaken: number;
+  peakTowns: number;
 }
 
 export interface InboxMsg {

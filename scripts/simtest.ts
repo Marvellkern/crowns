@@ -11,6 +11,7 @@ import { Bard } from '../src/ai/bard';
 import { CONFIG } from '../src/config';
 import { counts } from '../src/sim/kingdom';
 import { T } from '../src/sim/types';
+import { settlementsOf } from '../src/sim/towns';
 
 const games = Number(globalThis.process?.argv?.[2] ?? 6);
 const size = String(globalThis.process?.argv?.[3] ?? 'M');
@@ -55,7 +56,7 @@ for (let g = 0; g < games; g++) {
   const w = game.kingdoms[game.winner];
   const line =
     `seed ${seed}: ended ${game.when()} (${game.endReason}), winner ${w?.name ?? 'none'} [${w?.personaKey}] ` +
-    `| ${game.kingdoms.map((k) => `${k.name}/${k.personaKey}: ${k.alive ? `alive res ${Math.round(k.res.food)}/${Math.round(k.res.wood)}/${Math.round(k.res.gold)}` : "fell " + game.when(k.fellTurn)} pop ${counts(game, k).pop} peakArmy ${k.stats.peakArmy} won ${k.stats.battlesWon} betray ${k.stats.betrayals}`).join(' | ')} ` +
+    `| ${game.kingdoms.map((k) => `${k.name}/${k.personaKey}: ${k.alive ? `alive res ${Math.round(k.res.food)}/${Math.round(k.res.wood)}/${Math.round(k.res.gold)}` : "fell " + game.when(k.fellTurn)} towns ${settlementsOf(game, k).length} (peak ${k.stats.peakTowns}, founded ${k.stats.townsFounded}, took ${k.stats.townsTaken}) pop ${counts(game, k).pop} peakArmy ${k.stats.peakArmy} won ${k.stats.battlesWon} betray ${k.stats.betrayals}`).join(' | ')} ` +
     `| chronicle ${game.chronicle.length} lines, ai errors ${errs}, ${Date.now() - t0}ms`;
   results.push(line);
   if (g === 0) {

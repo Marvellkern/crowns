@@ -8,17 +8,18 @@
  *   winner takes some (more if the fight was close).
  */
 import { CONFIG } from '../config';
-import { RESOURCES, type Army, type Building, type Kingdom, type Resources } from './types';
-import { buildingsOf, counts, destroyBuilding, killHomeUnits, newUnit } from './kingdom';
+import { RESOURCES, type Army, type Building, type Kingdom, type Resources, type Unit } from './types';
+import { buildingsOf, destroyBuilding, newUnit } from './kingdom';
 import { stepAlongPath } from './economy';
+import { isSettlement, localUnits, loseSettlement, nearestSettlement, returnSettlers, settlementsOf, settlersArrive } from './towns';
 import type { Game } from './game';
 
 const C = () => CONFIG.combat;
 
-/** Destroy a building; if it was a town hall, that kingdom falls. */
+/** Destroy a building. A settlement is "lost" instead (capital moves, or the kingdom falls). */
 export function destroyBuildingAndCheck(game: Game, b: Building, by: Kingdom | null) {
-  destroyBuilding(game, b);
-  if (b.type === 'hall') game.defeat(game.kingdoms[b.kingdom], by);
+  if (isSettlement(b)) loseSettlement(game, b, by);
+  else destroyBuilding(game, b);
 }
 
 export interface Side {
@@ -71,8 +72,10 @@ export function resolve(att: Side, def: Side, rand: () => number) {
 }
 
 export function armySize(a: Army) {
-  return a.soldiers + a.archers + a.monsters;
+  return a.soldiers + a.archers + a.monsters + a.settlers;
 }
+/** Troops that can actually fight (settlers cannot). */
+const fighters = (a: Army) => a.soldiers + a.archers + a.monsters;
 
 /** True if the two parties will fight on contact. */
 export function hostile(game: Game, a: number, b: number) {
@@ -98,16 +101,16 @@ function pickTarget(game: Game, army: Army): Building | null {
   }
   const tk = game.kingdoms[army.targetKingdom];
   if (!tk || !tk.alive) return null;
-  let list = buildingsOf(game, tk);
+  // attacks go for settlements (to capture them); raids hit outlying buildings
+  let list = army.action === 'attack' ? settlementsOf(game, tk) : buildingsOf(game, tk);
   if (army.action === 'raid') {
-    const outer = list.filter((b) => b.type !== 'hall' && b.type !== 'wall');
+    const outer = list.filter((b) => !isSettlement(b) && b.type !== 'wall');
     if (outer.length) list = outer;
   }
   let best: Building | null = null;
   let bd = Infinity;
   for (const b of list) {
-    // attackers favour the hall: it ends the war
-    const d = Math.abs(b.x - army.x) + Math.abs(b.y - army.y) - (army.action === 'attack' && b.type === 'hall' ? 12 : 0);
+    const d = Math.abs(b.x - army.x) + Math.abs(b.y - army.y);
     if (d < bd) {
       bd = d;
       best = b;
@@ -129,20 +132,48 @@ export function updateArmies(game: Game) {
     const isMonster = army.kingdom === -1;
     stepAlongPath(game, army, isMonster ? CONFIG.movement.monster : CONFIG.movement.army);
 
-    if (army.action === 'return') {
+    if (army.action === 'settle') {
       const k = game.kingdoms[army.kingdom];
       if (!k || !k.alive) {
         removeArmy(game, army);
         continue;
       }
-      if (Math.abs(army.x - k.hx) <= 1 && Math.abs(army.y - k.hy) <= 1) {
-        disband(game, army, k);
+      if (Math.abs(army.x - army.tx) <= 1 && Math.abs(army.y - army.ty) <= 1) {
+        settlersArrive(game, army);
         continue;
       }
       if (army.path.length === 0) {
-        const p = world.pathNear(army.x, army.y, k.hx, k.hy);
+        const p = world.pathNear(army.x, army.y, army.tx, army.ty);
+        if (!p) returnSettlers(game, army);
+        else army.path = p;
+      }
+      continue;
+    }
+
+    if (army.action === 'return' || army.action === 'station') {
+      const k = game.kingdoms[army.kingdom];
+      if (!k || !k.alive) {
+        removeArmy(game, army);
+        continue;
+      }
+      // station: march to one of our towns; return: go to the nearest settlement
+      let dest = army.action === 'station' ? game.buildings.get(army.targetBuilding) : undefined;
+      if (!dest || dest.kingdom !== k.id) {
+        army.action = 'return';
+        dest = nearestSettlement(game, k, army.x, army.y) ?? undefined;
+      }
+      if (!dest) {
+        removeArmy(game, army);
+        continue;
+      }
+      if (Math.abs(army.x - dest.x) <= 1 && Math.abs(army.y - dest.y) <= 1) {
+        disband(game, army, k, dest);
+        continue;
+      }
+      if (army.path.length === 0) {
+        const p = world.pathNear(army.x, army.y, dest.x, dest.y);
         if (!p) {
-          disband(game, army, k);
+          disband(game, army, k, dest);
           continue;
         }
         army.path = p;
@@ -192,23 +223,44 @@ function removeArmy(game: Game, army: Army) {
   if (i >= 0) game.armies.splice(i, 1);
 }
 
-/** Army arrives home: its troops rejoin the garrison and loot goes to the stores. */
-function disband(game: Game, army: Army, k: Kingdom) {
-  for (let i = 0; i < army.soldiers; i++) k.units.push(newUnit(game, k, 'soldier', army.x, army.y));
-  for (let i = 0; i < army.archers; i++) k.units.push(newUnit(game, k, 'archer', army.x, army.y));
+/** Army arrives at a settlement: its troops join that garrison and loot goes to the stores. */
+function disband(game: Game, army: Army, k: Kingdom, post: Building) {
+  const add = (type: 'soldier' | 'archer') => {
+    const u = newUnit(game, k, type, army.x, army.y);
+    u.post = post.id;
+    k.units.push(u);
+  };
+  for (let i = 0; i < army.soldiers; i++) add('soldier');
+  for (let i = 0; i < army.archers; i++) add('archer');
   for (const r of RESOURCES) k.res[r] += army.loot[r];
   removeArmy(game, army);
 }
 
+/** Remove n units of a type from a given pool (and from the kingdom). */
+function killFrom(k: Kingdom, pool: Unit[], type: Unit['type'], n: number, rand: () => number) {
+  let killed = 0;
+  let candidates = pool.filter((u) => u.type === type);
+  while (killed < n && candidates.length) {
+    const v = candidates[Math.floor(rand() * candidates.length)];
+    candidates = candidates.filter((u) => u !== v);
+    k.units.splice(k.units.indexOf(v), 1);
+    killed++;
+  }
+  k.stats.unitsLost += killed;
+  return killed;
+}
+
 function assaultBuilding(game: Game, army: Army, b: Building) {
   const dk = game.kingdoms[b.kingdom];
-  const c = counts(game, dk);
-  const walls = buildingsOf(game, dk, 'wall').length >= CONFIG.combat.wallsForBonus;
+  // only troops (and, at a settlement, townsfolk) near the building defend it
+  const local = localUnits(dk, b.x, b.y);
+  const nearCapital = Math.max(Math.abs(b.x - dk.hx), Math.abs(b.y - dk.hy)) <= CONFIG.wallRadius + 2;
+  const walls = nearCapital && buildingsOf(game, dk, 'wall').length >= CONFIG.combat.wallsForBonus;
   const def = {
-    soldiers: c.soldiers,
-    archers: c.archers,
+    soldiers: local.filter((u) => u.type === 'soldier').length,
+    archers: local.filter((u) => u.type === 'archer').length,
     monsters: 0,
-    workers: b.type === 'hall' ? c.workers : 0,
+    workers: isSettlement(b) ? local.filter((u) => u.type === 'worker').length : 0,
     flat: CONFIG.buildings[b.type].defense,
     walls,
   };
@@ -219,9 +271,9 @@ function assaultBuilding(game: Game, army: Army, b: Building) {
   army.monsters -= r.aLoss.monsters;
   const rand = () => game.rng.next();
   const dDead =
-    killHomeUnits(dk, 'soldier', r.dLoss.soldiers, rand) +
-    killHomeUnits(dk, 'archer', r.dLoss.archers, rand) +
-    killHomeUnits(dk, 'worker', r.dLoss.workers, rand);
+    killFrom(dk, local, 'soldier', r.dLoss.soldiers, rand) +
+    killFrom(dk, local, 'archer', r.dLoss.archers, rand) +
+    killFrom(dk, local, 'worker', r.dLoss.workers, rand);
   const aDead = r.aLoss.soldiers + r.aLoss.archers + r.aLoss.monsters;
   const fell = aDead + dDead;
   game.markers.push({ x: b.x, y: b.y, ttl: CONFIG.combat.battleMarkerTicks, kind: 'battle' });
@@ -229,10 +281,10 @@ function assaultBuilding(game: Game, army: Army, b: Building) {
 
   const ak = army.kingdom >= 0 ? game.kingdoms[army.kingdom] : null;
   if (ak) ak.stats.unitsLost += aDead;
-  const bldName = b.type === 'hall' ? 'town hall' : b.type === 'lumber' ? 'lumber camp' : b.type;
+  const bldName = isSettlement(b) ? (b.name ?? 'town') : b.type === 'lumber' ? 'lumber camp' : b.type;
   const fellText = fellSuffix(fell);
   // what each side brought, so rulers learn why they won or lost
-  const odds = `your ${troops(att.soldiers + att.archers)} vs ${troops(def.soldiers + def.archers)} defending${b.type === 'hall' ? ' plus the town hall itself' : ''}`;
+  const odds = `your ${troops(att.soldiers + att.archers)} vs ${troops(def.soldiers + def.archers)} defending${isSettlement(b) ? ` plus the walls of ${bldName} itself` : ''}`;
 
   if (r.attackerWins) {
     if (ak) {
@@ -257,6 +309,33 @@ function assaultBuilding(game: Game, army: Army, b: Building) {
       sendHome(game, army);
       return;
     }
+    if (ak && isSettlement(b)) {
+      // capture: the town, its buildings and its people change hands
+      const wasCapital = b.type === 'hall';
+      game.log(wasCapital ? 'capital_captured' : 'town_captured', { a: ak.name, b: dk.name, town: bldName, fell: fellText }, b.x, b.y);
+      game.event(dk, `${ak.name} captured ${bldName}${wasCapital ? ', your capital!' : ''}${fellText}`);
+      game.event(ak, `You captured ${bldName} from ${dk.name} (${odds}). Your army now garrisons it.`);
+      for (const o of game.kingdoms) if (o.alive && o !== ak && o !== dk) game.event(o, `${ak.name} captured ${bldName} from ${dk.name}`);
+      loseSettlement(game, b, ak);
+      if (fighters(army) > 0) disband(game, army, ak, b);
+      else removeArmy(game, army);
+      return;
+    }
+    if (!ak && isSettlement(b)) {
+      // raiders cannot hold a town: they plunder it and melt away
+      const loot: string[] = [];
+      for (const res of RESOURCES) {
+        const take = Math.floor(Math.min(dk.res[res], CONFIG.combat.raidSteal[res]));
+        if (take > 0) {
+          dk.res[res] -= take;
+          loot.push(`${take} ${res}`);
+        }
+      }
+      game.log('monsters_sack', { town: bldName, b: dk.name, loot: loot.join(', ') || 'little of worth', fell: fellText }, b.x, b.y);
+      game.event(dk, `Wild raiders sacked ${bldName} and stole ${loot.join(', ') || 'little'}`);
+      removeArmy(game, army);
+      return;
+    }
     if (ak) {
       game.log('attack_win', { a: ak.name, b: dk.name, town: dk.town, bld: bldName, fell: fellText }, b.x, b.y);
       game.event(dk, `${ak.name} destroyed your ${bldName}${fellText}`);
@@ -275,7 +354,7 @@ function assaultBuilding(game: Game, army: Army, b: Building) {
     if (ak) {
       ak.stats.battlesLost++;
       dk.stats.battlesWon++;
-      game.log('attack_lose', { a: ak.name, b: dk.name, town: dk.town, fell: fellText }, b.x, b.y);
+      game.log('attack_lose', { a: ak.name, b: dk.name, town: isSettlement(b) ? bldName : dk.town, fell: fellText }, b.x, b.y);
       game.event(dk, `You repelled an attack by ${ak.name}${fellText}`);
       game.event(ak, `Your attack on ${dk.name} failed: ${odds}. Bring a bigger army.`);
       dk.morale = Math.min(100, dk.morale + 5);
@@ -328,6 +407,20 @@ function fieldBattles(game: Game) {
       if (!hostile(game, a.kingdom, b.kingdom)) continue;
       if (Math.abs(a.x - b.x) > 1 || Math.abs(a.y - b.y) > 1) continue;
       if (armySize(a) <= 0 || armySize(b) <= 0) continue;
+      // a war band that catches settlers on the road cuts them down
+      if (!fighters(a) || !fighters(b)) {
+        const prey = !fighters(a) ? a : b;
+        const hunter = prey === a ? b : a;
+        if (!fighters(hunter) || !prey.settlers) continue;
+        const pk = game.kingdoms[prey.kingdom];
+        const hunterName = hunter.kingdom === -1 ? 'wild raiders' : `the ${game.kingdoms[hunter.kingdom].name}`;
+        game.log('settlers_lost', { a: pk.name, b: hunterName, town: prey.townName }, prey.x, prey.y);
+        game.event(pk, `Your settlers bound for ${prey.townName} were killed by ${hunterName}`);
+        pk.stats.unitsLost += prey.settlers;
+        game.markers.push({ x: prey.x, y: prey.y, ttl: CONFIG.combat.battleMarkerTicks, kind: 'battle' });
+        removeArmy(game, prey);
+        continue;
+      }
       const sa = { soldiers: a.soldiers, archers: a.archers, monsters: a.monsters, workers: 0, flat: 0, walls: false };
       const sb = { soldiers: b.soldiers, archers: b.archers, monsters: b.monsters, workers: 0, flat: 0, walls: false };
       const r = resolve(sa, sb, () => game.rng.next());
@@ -362,9 +455,11 @@ function fieldBattles(game: Game) {
 }
 
 /** Raise an army from the home garrison. Returns null if no troops are home. */
-export function raiseArmy(game: Game, k: Kingdom, size: number, action: 'attack' | 'raid', target: number) {
-  const soldiers = k.units.filter((u) => u.type === 'soldier');
-  const archers = k.units.filter((u) => u.type === 'archer');
+export function raiseArmy(game: Game, k: Kingdom, size: number, action: 'attack' | 'raid' | 'station', target: number, targetBuilding = -1) {
+  // muster from the capital garrison first, then from further away
+  const byDist = (u: Unit) => Math.abs(u.x - k.hx) + Math.abs(u.y - k.hy);
+  const soldiers = k.units.filter((u) => u.type === 'soldier').sort((p, q) => byDist(p) - byDist(q));
+  const archers = k.units.filter((u) => u.type === 'archer').sort((p, q) => byDist(p) - byDist(q));
   // keep a mix: take soldiers first, then archers
   const takeS = Math.min(soldiers.length, Math.ceil(size * 0.65));
   const takeA = Math.min(archers.length, size - takeS);
@@ -387,8 +482,41 @@ export function raiseArmy(game: Game, k: Kingdom, size: number, action: 'attack'
     moveCd: 0,
     action,
     targetKingdom: target,
-    targetBuilding: -1,
+    targetBuilding,
     loot,
+    settlers: 0,
+    tx: 0,
+    ty: 0,
+    townName: '',
+  };
+  game.armies.push(army);
+  return army;
+}
+
+/** Send settlers (taken from the workers) to found a town at (tx,ty). */
+export function sendSettlers(game: Game, k: Kingdom, tx: number, ty: number, townName: string) {
+  const byDist = (u: Unit) => Math.abs(u.x - k.hx) + Math.abs(u.y - k.hy);
+  const workers = k.units.filter((u) => u.type === 'worker').sort((p, q) => byDist(p) - byDist(q));
+  const n = Math.min(CONFIG.towns.settlers, workers.length);
+  for (const u of workers.slice(0, n)) k.units.splice(k.units.indexOf(u), 1);
+  const army: Army = {
+    id: game.nextId++,
+    kingdom: k.id,
+    soldiers: 0,
+    archers: 0,
+    monsters: 0,
+    x: k.hx,
+    y: k.hy,
+    path: [],
+    moveCd: 0,
+    action: 'settle',
+    targetKingdom: -1,
+    targetBuilding: -1,
+    loot: { food: 0, wood: 0, gold: 0 },
+    settlers: n,
+    tx,
+    ty,
+    townName,
   };
   game.armies.push(army);
   return army;
@@ -409,6 +537,10 @@ export function spawnMonsters(game: Game, x: number, y: number, n: number) {
     targetKingdom: -1,
     targetBuilding: -1,
     loot: { food: 0, wood: 0, gold: 0 },
+    settlers: 0,
+    tx: 0,
+    ty: 0,
+    townName: '',
   };
   game.armies.push(army);
   game.focusOn(x, y);

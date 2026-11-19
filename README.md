@@ -73,7 +73,8 @@ No server or secrets are needed: every player pastes their own key.
 | Longer/shorter games | `sim.maxYears` |
 | Richer economy | `economy.yields` |
 | Bigger armies | `pop.maxHouses`, `economy.growthMaxWorkerShare` |
-| Stronger defenders | `buildings.hall.defense`, `combat.archerWallBonus` |
+| Stronger defenders | `buildings.hall.defense`, `buildings.town.defense`, `combat.archerWallBonus` |
+| More/fewer towns | `towns.maxOnMap`, `towns.maxPerKingdom`, `towns.cost`, `towns.minSpacing` |
 | More/fewer random raiders | `randomEvents.monsterChancePerTurn` |
 | Different model suggestions | `modelSuggestions`, `defaultModels` |
 
@@ -97,7 +98,8 @@ src/
     world.ts         seeded map generation + BFS pathfinding
     kingdom.ts       counting, costs, building placement, territory
     economy.ts       workers, upkeep, wages, starvation, growth, training
-    combat.ts        armies, battles, raids, capturing buildings
+    combat.ts        armies, battles, raids, capturing towns
+    towns.ts         settlements: founding towns, capture, capital relocation
     diplomacy.ts     messages, alliances, betrayals, war, peace, tribute
     orders.ts        validate + clamp + execute AI orders
     events.ts        god powers and random raiders
@@ -125,5 +127,6 @@ src/
 - **Balance additions** not in the brief, to stop endless stockpiles: troops are paid a small gold wage (unpaid troops desert), storage caps at 800 of each resource, and worker births stop at 60% of the pop cap so there is room for an army. Random raider bands appear sometimes so peaceful games still have drama.
 - **Model list:** suggestions only, editable in `config.ts`. Model IDs change often on OpenRouter, so if one stops working, swap it.
 - **Mock AI:** goes through the exact same JSON parse + validation path as a real model.
+- **Expansion and towns:** rulers can order `found_town`: settlers walk out and found a named town (at most 4 per kingdom and 12 on the whole map). Attacks capture towns instead of burning them, and the town, its buildings and its workers switch sides. Defence is local, so troops have to be stationed in a town (`defend` with a town name) to protect it. Losing the capital moves the court to the next town; a kingdom only falls when it holds no towns.
 - **Bard mode:** on by default (setup screen). One call per year to the bard model (default gpt-4o-mini, about $0.02 per game). Without a key, an offline bard stitches the year's biggest lines together. Ballads appear in the Bard tab, as the cinematic subtitle for a few seconds, on the end screen, and in the exported Chronicle.
 - **Not built yet (stretch goals):** serverless key proxy, replays, 2–6 kingdoms.

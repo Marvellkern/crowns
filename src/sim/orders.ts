@@ -9,7 +9,8 @@
 import { CONFIG } from '../config';
 import { RESOURCES, type BuildingType, type Kingdom, type Res, type UnitType } from './types';
 import { canAfford, counts, findBuildSite, maxAffordable, pay, placeBuilding, popCap } from './kingdom';
-import { raiseArmy, sendHome, troops } from './combat';
+import { raiseArmy, sendHome, sendSettlers, troops } from './combat';
+import { allSettlements, chooseTownSite, findSettlement, newTownName, regionName, settlementsOf } from './towns';
 import { DIP_TYPES, applyDiplomacy, cleanText, declareWar, type DipOrder, type DipType } from './diplomacy';
 import type { Game } from './game';
 
@@ -20,6 +21,8 @@ export interface Orders {
   train: Record<UnitType, number>;
   armies: { action: 'attack' | 'defend' | 'raid' | 'retreat'; target: string; size: number }[];
   diplomacy: DipOrder[];
+  /** Send settlers to found a town, biased toward "center", a rival's name, or a direction. */
+  found_town: { toward: string } | null;
 }
 
 const num = (v: unknown, def = 0) => {
@@ -94,7 +97,12 @@ export function sanitizeOrders(raw: any): Orders {
       amount: num((d as any).amount, 0),
     });
   }
-  return { thoughts: cleanText(o.thoughts, 45), worker_priorities: priorities, build, train, armies, diplomacy: diplomacy.slice(0, 6) };
+  let found_town: Orders['found_town'] = null;
+  const ft = o.found_town ?? o.found_towns ?? o.settle ?? o.expand;
+  if (ft === true || (typeof ft === 'number' && ft > 0)) found_town = { toward: 'center' };
+  else if (typeof ft === 'string' && ft.trim() && !/^(false|no|none|0)$/i.test(ft.trim())) found_town = { toward: ft.trim() };
+  else if (ft && typeof ft === 'object' && !Array.isArray(ft)) found_town = { toward: str(ft.toward ?? ft.near ?? ft.direction) || 'center' };
+  return { thoughts: cleanText(o.thoughts, 45), worker_priorities: priorities, build, train, armies, diplomacy: diplomacy.slice(0, 6), found_town };
 }
 
 /** Apply sanitized orders to the game. Returns human-readable rejections. */
@@ -134,6 +142,29 @@ export function executeOrders(game: Game, k: Kingdom, o: Orders): string[] {
     if (built) done.push(`built ${built} ${b.type}${built > 1 ? 's' : ''}`);
   }
 
+  if (o.found_town) {
+    const TW = CONFIG.towns;
+    const towns = settlementsOf(game, k).length + game.armies.filter((a) => a.kingdom === k.id && a.settlers > 0).length;
+    const workers = counts(game, k).workers;
+    if (allSettlements(game).length + game.armies.filter((x) => x.settlers > 0).length >= TW.maxOnMap)
+      rejected.push(`${k.name} tried to found a town, but the land is full (${TW.maxOnMap} towns): capture one instead`);
+    else if (towns >= TW.maxPerKingdom) rejected.push(`${k.name} tried to found a town, but already has the maximum (${TW.maxPerKingdom})`);
+    else if (workers < TW.settlers + TW.minWorkersLeft)
+      rejected.push(`${k.name} tried to found a town with ${workers} workers (needs ${TW.settlers + TW.minWorkersLeft})`);
+    else if (!canAfford(k.res, TW.cost)) rejected.push(`${k.name} tried to found a town but could not afford it`);
+    else {
+      const site = chooseTownSite(game, k, o.found_town.toward);
+      if (!site) rejected.push(`${k.name} tried to found a town toward "${o.found_town.toward}" but found no free land`);
+      else {
+        pay(k.res, TW.cost);
+        const name = newTownName(game);
+        sendSettlers(game, k, site.x, site.y, name);
+        game.log('settlers_depart', { a: k.name, town: name, where: regionName(game, site.x, site.y) }, k.hx, k.hy);
+        done.push(`sent settlers to found ${name}`);
+      }
+    }
+  }
+
   const hasBarracks = game.buildingsOfType(k, 'barracks').some((b) => b.buildLeft === 0);
   for (const type of ['worker', 'soldier', 'archer'] as UnitType[]) {
     const want = Math.min(o.train[type], CONFIG.maxTrainPerOrder);
@@ -153,6 +184,20 @@ export function executeOrders(game: Game, k: Kingdom, o: Orders): string[] {
   }
 
   for (const a of o.armies) {
+    const town = a.target ? findSettlement(game, a.target) : null;
+    // defend one of our towns (not the capital): march troops there and post them as its garrison
+    if (a.action === 'defend' && town && town.kingdom === k.id && town.type !== 'hall') {
+      const home = counts(game, k);
+      const avail = home.soldiers + home.archers;
+      const size = Math.min(a.size >= 9999 ? Math.ceil(avail / 2) : a.size, avail);
+      if (size <= 0) {
+        rejected.push(`${k.name} tried to garrison ${town.name} with no troops at home`);
+        continue;
+      }
+      const army = raiseArmy(game, k, size, 'station', -1, town.id);
+      if (army) done.push(`sent ${army.soldiers + army.archers} to garrison ${town.name}`);
+      continue;
+    }
     if (a.action === 'defend' || a.action === 'retreat') {
       let recalled = 0;
       for (const army of game.armies)
@@ -163,9 +208,10 @@ export function executeOrders(game: Game, k: Kingdom, o: Orders): string[] {
       done.push(recalled ? 'recalled its armies' : 'stood on defence');
       continue;
     }
-    const target = game.findKingdom(a.target);
+    // the target can be a kingdom, or one of its towns by name
+    const target = town ? game.kingdoms[town.kingdom] : game.findKingdom(a.target);
     if (!target || target.id === k.id || !target.alive) {
-      rejected.push(`${k.name}: ${a.action} target "${a.target}" is not a living rival`);
+      rejected.push(`${k.name}: ${a.action} target "${a.target}" is not a living rival or one of its towns`);
       continue;
     }
     if (game.relations[k.id][target.id] === 'allied') {
@@ -180,14 +226,16 @@ export function executeOrders(game: Game, k: Kingdom, o: Orders): string[] {
     }
     const size = Math.min(a.size || avail, avail);
     if (game.relations[k.id][target.id] !== 'war') declareWar(game, k, target);
-    const army = raiseArmy(game, k, size, a.action, target.id);
+    const aimed = town && a.action === 'attack' ? town : null;
+    const army = raiseArmy(game, k, size, a.action, target.id, aimed?.id ?? -1);
     if (army) {
       const n = army.soldiers + army.archers;
-      game.event(target, `Scouts report an army of ~${n} from ${k.name} marching toward you`);
+      const where = aimed ? aimed.name! : target.name;
+      game.event(target, `Scouts report an army of ~${n} from ${k.name} marching toward ${aimed ? aimed.name : 'you'}`);
       // raids are logged when they land (see combat.ts); only full attacks get a muster line
-      if (a.action === 'attack') game.log('muster', { a: k.name, b: target.name, troops: troops(n) }, k.hx, k.hy);
+      if (a.action === 'attack') game.log('muster', { a: k.name, b: aimed ? `${target.name} at ${aimed.name}` : target.name, troops: troops(n) }, k.hx, k.hy);
       game.focusOn(k.hx, k.hy);
-      done.push(`${a.action === 'raid' ? 'raided' : 'attacked'} ${target.name} with ${n}`);
+      done.push(`${a.action === 'raid' ? 'raided' : 'attacked'} ${where} with ${n}`);
     }
   }
 

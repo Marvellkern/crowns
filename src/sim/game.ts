@@ -76,6 +76,8 @@ export class Game {
   /** Consecutive raids by attacker>target, so repeated raids are summarised in the Chronicle. */
   ballads: Ballad[] = [];
   raidStreaks = new Map<string, { count: number; turn: number }>();
+  /** Settlement names already used this game (so every town name is unique). */
+  takenNames = new Set<string>();
 
   over = false;
   winner = -1;
@@ -99,7 +101,7 @@ export class Game {
     this.councilTicks = Math.round(setup.councilSec * CONFIG.sim.ticksPerSecond);
     this.councilCountdown = 3 * CONFIG.sim.ticksPerSecond; // first council shortly after the start
 
-    const taken = new Set<string>();
+    const taken = this.takenNames;
     const nameRng = new Rng(this.seedNum + 99);
     setup.kingdoms.forEach((ks, id) => {
       const st = starts[id];
@@ -128,11 +130,22 @@ export class Game {
         thinking: false,
         recentEvents: [],
         inbox: [],
-        stats: { peakArmy: 0, battlesWon: 0, battlesLost: 0, betrayals: 0, gathered: { food: 0, wood: 0, gold: 0 }, unitsLost: 0 },
+        stats: {
+          peakArmy: 0,
+          battlesWon: 0,
+          battlesLost: 0,
+          betrayals: 0,
+          gathered: { food: 0, wood: 0, gold: 0 },
+          unitsLost: 0,
+          townsFounded: 0,
+          townsTaken: 0,
+          peakTowns: 1,
+        },
         fellTurn: -1,
       };
       this.kingdoms.push(k);
       const hall = placeBuilding(this, k, 'hall', st.x, st.y, true);
+      hall.name = k.town;
       k.hallId = hall.id;
       for (let i = 0; i < CONFIG.start.workers; i++) k.units.push(newUnit(this, k, 'worker', st.x, st.y));
       this.log('founding', { a: k.name, town: k.town }, st.x, st.y);
@@ -189,8 +202,13 @@ export class Game {
     if (!k.alive) return 0;
     const c = counts(this, k);
     let blds = 0;
-    for (const b of this.buildings.values()) if (b.kingdom === k.id) blds++;
-    return Math.round(c.military * 3 + c.workers + blds * 2 + (k.res.food + k.res.wood + k.res.gold) / 20);
+    let towns = 0;
+    for (const b of this.buildings.values())
+      if (b.kingdom === k.id) {
+        blds++;
+        if (b.type === 'hall' || b.type === 'town') towns++;
+      }
+    return Math.round(c.military * 3 + c.workers + blds * 2 + towns * 15 + (k.res.food + k.res.wood + k.res.gold) / 20);
   }
 
   // ---------- the tick ----------
@@ -250,6 +268,9 @@ export class Game {
       if (!k.starvedThisTurn) k.morale = Math.min(100, k.morale + CONFIG.economy.moraleRecoverPerTurn);
       k.starvedThisTurn = false;
       k.stats.peakArmy = Math.max(k.stats.peakArmy, counts(this, k).military);
+      let towns = 0;
+      for (const b of this.buildings.values()) if (b.kingdom === k.id && (b.type === 'hall' || b.type === 'town')) towns++;
+      k.stats.peakTowns = Math.max(k.stats.peakTowns, towns);
     }
     this.history.push({ turn: this.turn, army: this.armySizes() });
     this.proposals = this.proposals.filter((p) => this.turn - p.turn <= CONFIG.diplomacy.proposalWindowTurns);
@@ -257,7 +278,7 @@ export class Game {
     this.onCouncil?.();
   }
 
-  /** A town hall fell: the kingdom is out. Its field armies turn into wild raiders. */
+  /** The kingdom's last settlement fell: it is out. Its field armies turn into wild raiders; settlers scatter. */
   defeat(k: Kingdom, by: Kingdom | null) {
     if (!k.alive) return;
     k.alive = false;
@@ -267,6 +288,7 @@ export class Game {
     k.stats.unitsLost += k.units.length;
     k.units = [];
     for (const b of [...this.buildings.values()]) if (b.kingdom === k.id) destroyBuilding(this, b);
+    this.armies = this.armies.filter((a) => !(a.kingdom === k.id && a.settlers > 0));
     for (const a of this.armies)
       if (a.kingdom === k.id) {
         a.kingdom = -1;
@@ -274,6 +296,7 @@ export class Game {
         a.soldiers = 0;
         a.archers = 0;
         a.action = 'monster';
+        if (a.monsters <= 0) a.monsters = 1;
         a.targetBuilding = -1;
         a.path = [];
       }

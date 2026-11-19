@@ -8,6 +8,7 @@
 import { CONFIG } from '../config';
 import { T, RESOURCES, type Kingdom, type Res, type Unit } from './types';
 import { counts, killHomeUnits, newUnit, popCap } from './kingdom';
+import { nearestSettlement, settlementsOf } from './towns';
 import type { Game } from './game';
 
 const SITE_FOR: Record<Res, 'farm' | 'lumber' | 'mine'> = { food: 'farm', wood: 'lumber', gold: 'mine' };
@@ -23,8 +24,10 @@ export function updateKingdom(game: Game, k: Kingdom) {
     else updateGarrison(game, k, u);
   }
 
-  // passive hall food
-  k.res.food += E.hallFoodPerSec / CONFIG.sim.ticksPerSecond;
+  // passive food: the capital, plus a little from every other town
+  const settlements = settlementsOf(game, k);
+  const passive = E.hallFoodPerSec + (settlements.length - 1) * CONFIG.towns.foodPerSec;
+  k.res.food += passive / CONFIG.sim.ticksPerSecond;
 
   // training queue: one unit at a time per finished barracks
   const barracks = game.buildingsOfType(k, 'barracks').filter((b) => b.buildLeft === 0);
@@ -35,7 +38,9 @@ export function updateKingdom(game: Game, k: Kingdom) {
     q.left--;
     if (q.left <= 0) {
       const at = q.type === 'worker' || !barracks[i] ? { x: k.hx, y: k.hy } : barracks[i];
-      k.units.push(newUnit(game, k, q.type, at.x, at.y));
+      const u = newUnit(game, k, q.type, at.x, at.y);
+      u.post = nearestSettlement(game, k, at.x, at.y)?.id ?? k.hallId;
+      k.units.push(u);
       k.trainQueue.splice(i, 1);
       i--;
     }
@@ -73,7 +78,11 @@ export function updateKingdom(game: Game, k: Kingdom) {
     const cap = popCap(game, k);
     if (c.pop + k.trainQueue.length < cap && c.workers < cap * E.growthMaxWorkerShare) {
       k.res.food -= E.growthFoodCost;
-      k.units.push(newUnit(game, k, 'worker', k.hx, k.hy));
+      // born in a random settlement, so towns fill up too
+      const home = settlements[Math.floor(game.rng.next() * settlements.length)];
+      const u = newUnit(game, k, 'worker', home.x, home.y);
+      u.post = home.id;
+      k.units.push(u);
     }
   }
 }
@@ -193,7 +202,9 @@ function updateWorker(game: Game, k: Kingdom, u: Unit) {
       u.carry = amount;
       u.carryRes = u.role;
       u.siteId = -1;
-      u.path = world.pathNear(u.x, u.y, k.hx, k.hy) ?? [];
+      // deliver to the nearest settlement (the town's storehouse feeds the whole kingdom)
+      const depot = nearestSettlement(game, k, u.x, u.y);
+      u.path = (depot && world.pathNear(u.x, u.y, depot.x, depot.y)) || [];
       u.state = 'toHome';
       return;
     }
@@ -208,15 +219,26 @@ function updateWorker(game: Game, k: Kingdom, u: Unit) {
   }
 }
 
-/** Soldiers/archers at home mill about near the town hall. */
+/** Soldiers/archers mill about near the settlement they are posted to. */
 function updateGarrison(game: Game, k: Kingdom, u: Unit) {
   step(game, u, CONFIG.movement.worker);
   if (u.path.length > 0) return;
-  if (game.rng.next() > 1 / CONFIG.movement.garrisonWanderTicks) return;
   const { world } = game;
+  let post = game.buildings.get(u.post);
+  if (!post || post.kingdom !== k.id) {
+    post = nearestSettlement(game, k, u.x, u.y) ?? undefined;
+    if (!post) return;
+    u.post = post.id;
+  }
+  if (game.rng.next() > 1 / CONFIG.movement.garrisonWanderTicks) return;
+  // far from its post (just trained, or fell back): walk there
+  if (Math.max(Math.abs(u.x - post.x), Math.abs(u.y - post.y)) > 5) {
+    u.path = world.pathNear(u.x, u.y, post.x, post.y) ?? [];
+    if (u.path.length) return;
+  }
   for (let tries = 0; tries < 4; tries++) {
-    const x = k.hx + game.rng.int(-3, 3);
-    const y = k.hy + game.rng.int(-3, 3);
+    const x = post.x + game.rng.int(-3, 3);
+    const y = post.y + game.rng.int(-3, 3);
     if (world.inb(x, y) && world.passable(world.idx(x, y))) {
       u.path = world.findPath(u.x, u.y, (i) => i === world.idx(x, y), 400) ?? [];
       return;

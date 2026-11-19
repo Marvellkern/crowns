@@ -31,6 +31,36 @@ export const CHRONICLE_TEMPLATES: Record<string, string[]> = {
     'War drums beat in the halls of the {a}; {troops} set out against the {b}.',
     'The {a} sent {troops} against the {b}.',
   ],
+  settlers_depart: [
+    'Settlers of the {a} set out for {where} to found {town}.',
+    'A wagon train left the {a}, bound for {where}, where they meant to raise {town}.',
+  ],
+  town_founded: [
+    'The {a} founded {town} in {where}.',
+    'A new banner rose over {where}: the {a} had founded {town}.',
+    '{town} was founded by the {a}, staking their claim to {where}.',
+  ],
+  town_captured: [
+    'The {a} seized {town} from the {b}.{fell}',
+    '{town} fell to the {a}; its people now bow to new masters.{fell}',
+    'The banner of the {b} was torn down over {town}. The {a} hold it now.{fell}',
+  ],
+  capital_captured: [
+    'The {a} took {town}, the very capital of the {b}!{fell}',
+    'The unthinkable: {town}, heart of the {b}, fell to the {a}.{fell}',
+  ],
+  capital_moved: [
+    'The {a} fled {old} and named {town} their new capital.',
+    'With {old} lost, the court of the {a} rode for {town}, their capital now.',
+  ],
+  settlers_lost: [
+    'Settlers of the {a}, bound for {town}, were cut down on the road by {b}.',
+    'The {a} would never found {town}: {b} fell upon their settlers.',
+  ],
+  monsters_sack: [
+    'Wild raiders sacked {town} of the {b}, carrying off {loot}, then vanished into the wilds.{fell}',
+    'Raiders stormed {town} and plundered it ({loot}) before scattering.{fell}',
+  ],
   barracks: [
     'The {a} began raising a barracks at {town}. Their neighbours took note.',
     'At {town}, the {a} laid the foundations of a barracks.',

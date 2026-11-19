@@ -21,6 +21,7 @@ export function newUnit(game: Game, k: Kingdom, type: UnitType, x: number, y: nu
     workLeft: 0,
     carry: 0,
     carryRes: 'food',
+    post: k.hallId,
   };
 }
 
@@ -36,10 +37,12 @@ export function counts(game: Game, k: Kingdom) {
   }
   let fieldS = 0;
   let fieldA = 0;
+  let settlers = 0;
   for (const a of game.armies)
     if (a.kingdom === k.id) {
       fieldS += a.soldiers;
       fieldA += a.archers;
+      settlers += a.settlers;
     }
   return {
     workers,
@@ -48,7 +51,8 @@ export function counts(game: Game, k: Kingdom) {
     fieldSoldiers: fieldS,
     fieldArchers: fieldA,
     military: soldiers + archers + fieldS + fieldA,
-    pop: workers + soldiers + archers + fieldS + fieldA,
+    settlers, // on the road to found a town
+    pop: workers + soldiers + archers + fieldS + fieldA + settlers,
   };
 }
 
@@ -63,9 +67,10 @@ export function popCap(game: Game, k: Kingdom): number {
   for (const b of game.buildings.values()) {
     if (b.kingdom !== k.id || b.buildLeft > 0) continue;
     if (b.type === 'hall') cap += CONFIG.pop.hallCap;
+    else if (b.type === 'town') cap += CONFIG.pop.townCap;
     else if (b.type === 'house') cap += CONFIG.pop.houseCap;
   }
-  return cap;
+  return Math.min(cap, CONFIG.pop.maxCap);
 }
 
 export function canAfford(res: Resources, cost: Resources, times = 1) {
@@ -95,52 +100,62 @@ function near(game: Game, x: number, y: number, r: number, terrain: number) {
   return false;
 }
 
-/** Pick a tile for a new building of `type`, or null if there is no room. */
+/**
+ * Pick a tile for a new building of `type` near any of the kingdom's
+ * settlements (walls only ring the capital), or null if there is no room.
+ */
 export function findBuildSite(game: Game, k: Kingdom, type: BuildingType): { x: number; y: number } | null {
   const { world } = game;
-  const R = CONFIG.maxBuildRadius;
   let best: { x: number; y: number } | null = null;
   let bestScore = Infinity;
-  for (let dy = -R; dy <= R; dy++) {
-    for (let dx = -R; dx <= R; dx++) {
-      const x = k.hx + dx;
-      const y = k.hy + dy;
-      if (!world.inb(x, y)) continue;
-      const i = world.idx(x, y);
-      const t = world.terrain[i];
-      if (t !== T.GRASS && t !== T.SAND) continue;
-      if (world.bld[i]) continue;
-      const own = world.owner[i];
-      if (own !== -1 && own !== k.id) continue;
-      const cheb = Math.max(Math.abs(dx), Math.abs(dy));
-      const dist = Math.hypot(dx, dy);
-      if (type === 'wall') {
-        if (cheb !== CONFIG.wallRadius) continue;
-      } else {
-        if (cheb < 2) continue;
-        if (cheb === CONFIG.wallRadius) continue; // keep the wall ring free
-        // no buildings touching each other (walls excepted), so the map stays readable
-        let crowded = false;
-        for (let oy = -1; oy <= 1 && !crowded; oy++)
-          for (let ox = -1; ox <= 1; ox++) {
-            if (!world.inb(x + ox, y + oy)) continue;
-            const bid = world.bld[world.idx(x + ox, y + oy)];
-            if (bid && game.buildings.get(bid)?.type !== 'wall') {
-              crowded = true;
-              break;
+  const centres: Building[] = [];
+  for (const b of game.buildings.values()) if (b.kingdom === k.id && (b.type === 'hall' || b.type === 'town')) centres.push(b);
+  for (const c of centres) {
+    const isCap = c.type === 'hall';
+    if (type === 'wall' && !isCap) continue;
+    const R = isCap ? CONFIG.maxBuildRadius : CONFIG.towns.buildRadius;
+    for (let dy = -R; dy <= R; dy++) {
+      for (let dx = -R; dx <= R; dx++) {
+        const x = c.x + dx;
+        const y = c.y + dy;
+        if (!world.inb(x, y)) continue;
+        const i = world.idx(x, y);
+        const t = world.terrain[i];
+        if (t !== T.GRASS && t !== T.SAND) continue;
+        if (world.bld[i]) continue;
+        const own = world.owner[i];
+        if (own !== -1 && own !== k.id) continue;
+        const cheb = Math.max(Math.abs(dx), Math.abs(dy));
+        const dist = Math.hypot(dx, dy);
+        if (type === 'wall') {
+          if (cheb !== CONFIG.wallRadius) continue;
+        } else {
+          if (cheb < 2) continue;
+          // keep the capital's wall ring free
+          if (Math.max(Math.abs(x - k.hx), Math.abs(y - k.hy)) === CONFIG.wallRadius) continue;
+          // no buildings touching each other (walls excepted), so the map stays readable
+          let crowded = false;
+          for (let oy = -1; oy <= 1 && !crowded; oy++)
+            for (let ox = -1; ox <= 1; ox++) {
+              if (!world.inb(x + ox, y + oy)) continue;
+              const bid = world.bld[world.idx(x + ox, y + oy)];
+              if (bid && game.buildings.get(bid)?.type !== 'wall') {
+                crowded = true;
+                break;
+              }
             }
-          }
-        if (crowded) continue;
-      }
-      let score = dist;
-      if (type === 'farm' && t !== T.GRASS) continue;
-      if (type === 'lumber' && !near(game, x, y, 2, T.FOREST)) continue;
-      if (type === 'mine' && !near(game, x, y, 2, T.MOUNTAIN)) continue;
-      if ((type === 'house' || type === 'barracks') && cheb > 9) score += 20;
-      if (type === 'wall') score = (Math.atan2(dy, dx) + Math.PI) * 0.01 + game.rng.next() * 0.001;
-      if (score < bestScore) {
-        bestScore = score;
-        best = { x, y };
+          if (crowded) continue;
+        }
+        let score = dist + (isCap ? 0 : 2);
+        if (type === 'farm' && t !== T.GRASS) continue;
+        if (type === 'lumber' && !near(game, x, y, 2, T.FOREST)) continue;
+        if (type === 'mine' && !near(game, x, y, 2, T.MOUNTAIN)) continue;
+        if ((type === 'house' || type === 'barracks') && cheb > 9) score += 20;
+        if (type === 'wall') score = (Math.atan2(dy, dx) + Math.PI) * 0.01 + game.rng.next() * 0.001;
+        if (score < bestScore) {
+          bestScore = score;
+          best = { x, y };
+        }
       }
     }
   }

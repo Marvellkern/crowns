@@ -5,12 +5,14 @@
 import { CONFIG } from '../config';
 import { TERRAIN_NAMES } from '../sim/types';
 import type { Game } from '../sim/game';
+import { localUnits } from '../sim/towns';
 
 export const esc = (s: string) =>
   s.replace(/[&<>"']/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' })[c]!);
 
 const BUILDING_NAMES: Record<string, string> = {
-  hall: 'Town hall',
+  hall: 'Capital',
+  town: 'Town',
   farm: 'Farm',
   lumber: 'Lumber camp',
   mine: 'Mine',
@@ -34,7 +36,11 @@ export function describeTile(game: Game, x: number, y: number): string {
   if (b) {
     const k = game.kingdoms[b.kingdom];
     let s = `${BUILDING_NAMES[b.type]} of ${kname(b.kingdom)} · HP ${Math.max(0, b.hp)}/${b.maxHp}`;
-    if (b.type === 'hall') s += ` · capital <b>${esc(k.town)}</b>`;
+    if (b.name) {
+      const local = localUnits(k, b.x, b.y);
+      const guard = local.filter((u) => u.type !== 'worker').length;
+      s = `<b>${esc(b.name)}</b> · ${s} · garrison ${guard}, townsfolk ${local.length - guard}`;
+    }
     if (b.buildLeft > 0) s += ` · <i>building, ${Math.ceil(b.buildLeft / CONFIG.sim.ticksPerSecond)}s left</i>`;
     lines.push(s);
   }
@@ -57,7 +63,17 @@ export function describeTile(game: Game, x: number, y: number): string {
     if (a.soldiers) parts.push(`${a.soldiers} soldiers`);
     if (a.archers) parts.push(`${a.archers} archers`);
     if (a.monsters) parts.push(`${a.monsters} raiders`);
-    const target = a.action === 'return' ? 'returning home' : a.action === 'monster' ? 'rampaging' : `${a.action} → ${esc(game.kingdoms[a.targetKingdom]?.name ?? '?')}`;
+    if (a.settlers) parts.push(`${a.settlers} settlers`);
+    const target =
+      a.action === 'return'
+        ? 'returning home'
+        : a.action === 'monster'
+          ? 'rampaging'
+          : a.action === 'settle'
+            ? `going to found ${esc(a.townName)}`
+            : a.action === 'station'
+              ? `to garrison ${esc(game.buildings.get(a.targetBuilding)?.name ?? '?')}`
+              : `${a.action} → ${esc(game.buildings.get(a.targetBuilding)?.name ?? game.kingdoms[a.targetKingdom]?.name ?? '?')}`;
     lines.push(`Army of ${kname(a.kingdom)}: ${parts.join(', ')} · ${target}`);
   }
   return lines.join('<br>');

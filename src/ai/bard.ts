@@ -135,7 +135,7 @@ function offlineBallad(year: number, lines: ChronEntry[]) {
         .replace(/\s*\(\d+ fell\)/, '')
         .replace(/^[A-Z][a-z]+( [a-z]+){0,2}[!:]\s+/, '')
         .replace(/\.$/, '');
-      const joined = /^(The|A|An|At|Again|War|Wagons|Raiders|Envoys|Steel|Fire|Famine|Wild|Plague) /.test(s) ? s.charAt(0).toLowerCase() + s.slice(1) : s;
+      const joined = /^(The|A|An|At|Again|War|Wagons|Raiders|Envoys|Steel|Fire|Famine|Wild|Plague|Settlers|Raiders) /.test(s) ? s.charAt(0).toLowerCase() + s.slice(1) : s;
       return `${openers[i % openers.length]} ${joined}.`;
     })
     .join(' ');
